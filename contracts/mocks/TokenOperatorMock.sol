@@ -4,6 +4,7 @@ pragma solidity ^0.8.9;
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "../HybridHiveCore.sol";
+import "../interfaces/IHybridHiveCore.sol";
 
 contract TokenOperatorMock is Ownable {
     HybridHiveCore public hybridHiveCore;
@@ -28,5 +29,16 @@ contract TokenOperatorMock is Ownable {
     ) public onlyOwner {
         // @todo implement onlyOperator(_tokenId)
         hybridHiveCore.burnToken(_tokenId, _account, _amount);
+    }
+
+    function updateParentAggregator(
+        uint256 _tokenId,
+        uint256 _parentAggregatorId
+    ) public onlyOwner {
+        hybridHiveCore.updateParentAggregator(
+            IHybridHiveCore.EntityType.TOKEN,
+            _tokenId,
+            _parentAggregatorId
+        );
     }
 }

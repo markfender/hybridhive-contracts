@@ -3,6 +3,8 @@ pragma solidity ^0.8.9;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
+import "./interfaces/IHybridHiveCore.sol";
+
 // Uncomment this line to use console.log
 // import "hardhat/console.sol";
 
@@ -14,41 +16,9 @@ contract HybridHiveCore {
         @todo
         1. add events and event emiting
         2. errors messages
+        3. avoid circles in the tree
     
-     */
-
-    enum EntityType {
-        UNDEFINED,
-        TOKEN,
-        AGGREGATOR
-    }
-
-    struct TokenData {
-        string name;
-        string symbol;
-        string uri;
-        address operator;
-        uint256 parentAggregator;
-        uint256 totalSupply;
-    }
-
-    struct AggregatorData {
-        string name;
-        string symbol;
-        string uri;
-        address operator;
-        uint256 parentAggregator;
-        EntityType aggregatedEntityType;
-    }
-
-    struct GlobalTransfer {
-        uint256 status; // 0 - doesn't exist, 10 - excecuted
-        uint256 value; // GLOBAL SHARE
-        uint256 tokenFromId;
-        uint256 tokenToId;
-        address sender;
-        address recipient;
-    }
+    */
 
     // CONSTANTS
     uint256 public constant DENOMINATOR = 100000000; // 100 000 000
@@ -57,7 +27,7 @@ contract HybridHiveCore {
     // Set of all token Ids
     EnumerableSet.UintSet private _tokenIds;
     // Mapping from token ID to detailed tokens data
-    mapping(uint256 => TokenData) private _tokensData;
+    mapping(uint256 => IHybridHiveCore.TokenData) private _tokensData;
     // Mapping from token ID to account balances
     mapping(uint256 => mapping(address => uint256)) private _balances;
     // Mapping from token ID to list of allowed holders
@@ -67,25 +37,28 @@ contract HybridHiveCore {
     // Set of all aggregator Ids
     EnumerableSet.UintSet private _aggregatorIds;
     // Mapping from aggregator ID to detailed aggregator date
-    mapping(uint256 => AggregatorData) private _aggregatorsData;
+    mapping(uint256 => IHybridHiveCore.AggregatorData) private _aggregatorsData;
     // Mapping from aggregator ID to a set of aggregated entities
     mapping(uint256 => EnumerableSet.UintSet) private _subEntities;
     // Mapping from aggregator ID to a mapping from sub entity Id to sub entity share
     mapping(uint256 => mapping(uint256 => uint256)) private _weights; // all subentities shares should be equal to 100 000 000 = 100%
 
     // GLOBAL TRANSFER
-    mapping(uint256 => GlobalTransfer) private _globalTransfer;
+    mapping(uint256 => IHybridHiveCore.GlobalTransfer) private _globalTransfer;
 
     // Used as the URI for all token types by relying on ID substitution, e.g. https://token-cdn-domain/{id}.json
     string private _uri;
 
     //MODIFIER
 
-    modifier onlyOperator(EntityType _entityType, uint256 _entityId) {
-        if (_entityType == EntityType.TOKEN) {
+    modifier onlyOperator(
+        IHybridHiveCore.EntityType _entityType,
+        uint256 _entityId
+    ) {
+        if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
             require(_tokenIds.contains(_entityId));
             require(_tokensData[_entityId].operator == msg.sender);
-        } else if (_entityType == EntityType.AGGREGATOR) {
+        } else if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
             require(_aggregatorIds.contains(_entityId));
             require(_aggregatorsData[_entityId].operator == msg.sender);
         } else revert("Unknown entity type");
@@ -109,7 +82,7 @@ contract HybridHiveCore {
         assert(!_tokenIds.contains(newTokenId)); // there should be no token id
         _tokenIds.add(newTokenId);
 
-        TokenData storage newToken = _tokensData[newTokenId]; // skip the first token index
+        IHybridHiveCore.TokenData storage newToken = _tokensData[newTokenId]; // skip the first token index
         newToken.name = _tokenName;
         newToken.symbol = _tokenSymbol;
         newToken.uri = _tokenURI;
@@ -130,7 +103,7 @@ contract HybridHiveCore {
         uint256 _tokenId,
         address _account,
         uint256 _amount
-    ) public onlyOperator(EntityType.TOKEN, _tokenId) {
+    ) public onlyOperator(IHybridHiveCore.EntityType.TOKEN, _tokenId) {
         // @todo implement onlyOperator(_tokenId)
         _mintToken(_tokenId, _account, _amount);
     }
@@ -139,7 +112,7 @@ contract HybridHiveCore {
         uint256 _tokenId,
         address _account,
         uint256 _amount
-    ) public onlyOperator(EntityType.TOKEN, _tokenId) {
+    ) public onlyOperator(IHybridHiveCore.EntityType.TOKEN, _tokenId) {
         // @todo implement onlyOperator(_tokenId)
         _burnToken(_tokenId, _account, _amount);
     }
@@ -148,7 +121,7 @@ contract HybridHiveCore {
     function addAllowedHolder(
         uint256 _tokenId,
         address _newAllowedHolder
-    ) public onlyOperator(EntityType.TOKEN, _tokenId) {
+    ) public onlyOperator(IHybridHiveCore.EntityType.TOKEN, _tokenId) {
         _addAllowedHolder(_tokenId, _newAllowedHolder);
     }
 
@@ -158,6 +131,7 @@ contract HybridHiveCore {
         string memory _aggregatorURI,
         address _aggregatorOperator, // @todo FOR future implementaionsЖcheck if it has appropriabe fields like `delegate`
         uint256 _parentAggregator,
+        IHybridHiveCore.EntityType _aggregatedEntityType,
         uint256[] memory _aggregatedEntities, // @todo add validation _aggregatedEntities.len == _aggregatedEntitiesWeights.len
         uint256[] memory _aggregatedEntitiesWeights // @todo should be equal to denminator
     ) public returns (uint256) {
@@ -168,7 +142,7 @@ contract HybridHiveCore {
         assert(!_aggregatorIds.contains(newAggregatorId)); // there should be no such aggregator id
         _aggregatorIds.add(newAggregatorId);
 
-        AggregatorData storage newAggregator = _aggregatorsData[
+        IHybridHiveCore.AggregatorData storage newAggregator = _aggregatorsData[
             newAggregatorId
         ]; // skip the first token index
         newAggregator.name = _aggregatorName;
@@ -176,6 +150,7 @@ contract HybridHiveCore {
         newAggregator.uri = _aggregatorURI;
         newAggregator.operator = _aggregatorOperator;
         newAggregator.parentAggregator = _parentAggregator;
+        newAggregator.aggregatedEntityType = _aggregatedEntityType;
 
         // add aggregator subentities to the list of entities
         for (uint256 i = 0; i < _aggregatedEntities.length; i++) {
@@ -192,15 +167,17 @@ contract HybridHiveCore {
             ] = _aggregatedEntitiesWeights[i];
         }
         require(totalWeights == DENOMINATOR);
+
+        return newAggregatorId;
     }
 
     // GENERAL FUCNCTIONS
     // @todo restrict control to onlyOperatorValidator
     function updateParentAggregator(
-        EntityType _entityType,
-        uint256 _aggregatorId,
+        IHybridHiveCore.EntityType _entityType,
+        uint256 _entityId,
         uint256 _parentAggregatorId
-    ) public onlyOperator(_entityType, _aggregatorId) {
+    ) public onlyOperator(_entityType, _entityId) {
         // @todo validate if it matches the type
 
         require(
@@ -208,16 +185,15 @@ contract HybridHiveCore {
                 _entityType
         );
 
-        if (_entityType == EntityType.AGGREGATOR) {
-            _aggregatorsData[_aggregatorId]
-                .parentAggregator = _parentAggregatorId;
-        } else if (_entityType == EntityType.TOKEN) {
-            _tokensData[_aggregatorId].parentAggregator = _parentAggregatorId;
+        if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
+            _aggregatorsData[_entityId].parentAggregator = _parentAggregatorId;
+        } else if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
+            _tokensData[_entityId].parentAggregator = _parentAggregatorId;
         }
     }
 
     function addSubEntity(
-        EntityType _entityType,
+        IHybridHiveCore.EntityType _entityType,
         uint256 _aggregatorId,
         uint256 _subEntity
     ) public onlyOperator(_entityType, _aggregatorId) {
@@ -250,7 +226,7 @@ contract HybridHiveCore {
         address _recepient,
         uint256 _amount
     ) internal {
-        TokenData storage tokenData = _tokensData[_tokenId];
+        IHybridHiveCore.TokenData storage tokenData = _tokensData[_tokenId];
         require(isAllowedTokenHolder(_tokenId, _recepient)); // @todo consider moving this condition to modifier
 
         _balances[_tokenId][_recepient] += _amount;
@@ -262,7 +238,7 @@ contract HybridHiveCore {
         address _recepient,
         uint256 _amount
     ) internal {
-        TokenData storage tokenData = _tokensData[_tokenId];
+        IHybridHiveCore.TokenData storage tokenData = _tokensData[_tokenId];
         // DO NOT CHECK IF RECIPIENT IS A MEMBER
         // it should be possible to burn tokens even if holder is removed from the allowed holder list
 
@@ -337,7 +313,7 @@ contract HybridHiveCore {
      */
     function getAggregatorSubEntities(
         uint256 _aggregatorId
-    ) public view returns (EntityType, uint256[] memory) {
+    ) public view returns (IHybridHiveCore.EntityType, uint256[] memory) {
         //@todo check if sub entities connected this aggregator as a parent
         require(_aggregatorIds.contains(_aggregatorId));
 
