@@ -28,7 +28,7 @@ contract HybridHiveCore {
         string symbol;
         string uri;
         address operator;
-        uint256 tokenAggregator;
+        uint256 parentAggregator;
         uint256 totalSupply;
     }
 
@@ -79,12 +79,26 @@ contract HybridHiveCore {
     // Used as the URI for all token types by relying on ID substitution, e.g. https://token-cdn-domain/{id}.json
     string private _uri;
 
+    //MODIFIER
+
+    modifier onlyOperator(EntityType _entityType, uint256 _entityId) {
+        if (_entityType == EntityType.TOKEN) {
+            require(_tokenIds.contains(_entityId));
+            require(_tokensData[_entityId].operator == msg.sender);
+        } else if (_entityType == EntityType.AGGREGATOR) {
+            require(_aggregatorIds.contains(_entityId));
+            require(_aggregatorsData[_entityId].operator == msg.sender);
+        } else revert("Unknown entity type");
+
+        _;
+    }
+
     function createToken(
         string memory _tokenName,
         string memory _tokenSymbol,
         string memory _tokenURI,
         address _tokenOperator, // @todo check if it has appropriabe fields like `delegate`
-        uint256 _tokenAggregator,
+        uint256 _parentAggregator,
         address[] memory _tokenHolders, //@todo add validation _tokenCommunityMembers.len == _memberBalances.len
         uint256[] memory _holderBalances
     ) public returns (uint256) {
@@ -100,7 +114,7 @@ contract HybridHiveCore {
         newToken.symbol = _tokenSymbol;
         newToken.uri = _tokenURI;
         newToken.operator = _tokenOperator;
-        newToken.tokenAggregator = _tokenAggregator;
+        newToken.parentAggregator = _parentAggregator;
 
         for (uint256 i = 0; i < _tokenHolders.length; i++) {
             // Add account to the allowed token holder list
@@ -112,7 +126,118 @@ contract HybridHiveCore {
         return newTokenId;
     }
 
-    // PRIVAT FUNCTIONS
+    function mintToken(
+        uint256 _tokenId,
+        address _account,
+        uint256 _amount
+    ) public onlyOperator(EntityType.TOKEN, _tokenId) {
+        // @todo implement onlyOperator(_tokenId)
+        _mintToken(_tokenId, _account, _amount);
+    }
+
+    function burnToken(
+        uint256 _tokenId,
+        address _account,
+        uint256 _amount
+    ) public onlyOperator(EntityType.TOKEN, _tokenId) {
+        // @todo implement onlyOperator(_tokenId)
+        _burnToken(_tokenId, _account, _amount);
+    }
+
+    // @todo add validations
+    function addAllowedHolder(
+        uint256 _tokenId,
+        address _newAllowedHolder
+    ) public onlyOperator(EntityType.TOKEN, _tokenId) {
+        _addAllowedHolder(_tokenId, _newAllowedHolder);
+    }
+
+    function createAggregator(
+        string memory _aggregatorName,
+        string memory _aggregatorSymbol,
+        string memory _aggregatorURI,
+        address _aggregatorOperator, // @todo FOR future implementaionsЖcheck if it has appropriabe fields like `delegate`
+        uint256 _parentAggregator,
+        uint256[] memory _aggregatedEntities, // @todo add validation _aggregatedEntities.len == _aggregatedEntitiesWeights.len
+        uint256[] memory _aggregatedEntitiesWeights // @todo should be equal to denminator
+    ) public returns (uint256) {
+        // @todo add validations
+        require(_aggregatorOperator != address(0));
+
+        uint256 newAggregatorId = _aggregatorIds.length() + 1;
+        assert(!_aggregatorIds.contains(newAggregatorId)); // there should be no such aggregator id
+        _aggregatorIds.add(newAggregatorId);
+
+        AggregatorData storage newAggregator = _aggregatorsData[
+            newAggregatorId
+        ]; // skip the first token index
+        newAggregator.name = _aggregatorName;
+        newAggregator.symbol = _aggregatorSymbol;
+        newAggregator.uri = _aggregatorURI;
+        newAggregator.operator = _aggregatorOperator;
+        newAggregator.parentAggregator = _parentAggregator;
+
+        // add aggregator subentities to the list of entities
+        for (uint256 i = 0; i < _aggregatedEntities.length; i++) {
+            _subEntities[newAggregatorId].add(_aggregatedEntities[i]);
+        }
+
+        // sum of all weights should be equal to 100%
+        uint256 totalWeights = 0;
+        for (uint256 i = 0; i < _aggregatedEntitiesWeights.length; i++) {
+            totalWeights += _aggregatedEntitiesWeights[i];
+
+            _weights[newAggregatorId][
+                _aggregatedEntities[i]
+            ] = _aggregatedEntitiesWeights[i];
+        }
+        require(totalWeights == DENOMINATOR);
+    }
+
+    // GENERAL FUCNCTIONS
+    // @todo restrict control to onlyOperatorValidator
+    function updateParentAggregator(
+        EntityType _entityType,
+        uint256 _aggregatorId,
+        uint256 _parentAggregatorId
+    ) public onlyOperator(_entityType, _aggregatorId) {
+        // @todo validate if it matches the type
+
+        require(
+            _aggregatorsData[_parentAggregatorId].aggregatedEntityType ==
+                _entityType
+        );
+
+        if (_entityType == EntityType.AGGREGATOR) {
+            _aggregatorsData[_aggregatorId]
+                .parentAggregator = _parentAggregatorId;
+        } else if (_entityType == EntityType.TOKEN) {
+            _tokensData[_aggregatorId].parentAggregator = _parentAggregatorId;
+        }
+    }
+
+    function addSubEntity(
+        EntityType _entityType,
+        uint256 _aggregatorId,
+        uint256 _subEntity
+    ) public onlyOperator(_entityType, _aggregatorId) {
+        require(_subEntities[_aggregatorId].add(_subEntity));
+
+        _weights[_aggregatorId][_subEntity] = 0; // weight of the new entity should be zero
+    }
+
+    // INTERNAL FUNCTIONS
+
+    function _updateSubEntitiesWeights(
+        uint256 _aggregatorId,
+        uint256 _entityIdFrom,
+        uint256 _entityIdTo,
+        uint256 _share // DENOMINATOR = 100%
+    ) internal {
+        require(_share > 0);
+        _weights[_aggregatorId][_entityIdFrom] -= _share;
+        _weights[_aggregatorId][_entityIdTo] += _share;
+    }
 
     // TOKEN INTERNAL FUCNTIONS
     function _addAllowedHolder(uint256 _tokenId, address _account) internal {
@@ -194,6 +319,7 @@ contract HybridHiveCore {
         uint256 _aggregatorId
     ) public view returns (uint256) {
         require(_aggregatorIds.contains(_aggregatorId));
+        //@todo check if parent connected this aggregator as a child
         return _aggregatorsData[_aggregatorId].parentAggregator;
     }
 
@@ -212,6 +338,7 @@ contract HybridHiveCore {
     function getAggregatorSubEntities(
         uint256 _aggregatorId
     ) public view returns (EntityType, uint256[] memory) {
+        //@todo check if sub entities connected this aggregator as a parent
         require(_aggregatorIds.contains(_aggregatorId));
 
         return (
