@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "./interfaces/IHybridHiveCore.sol";
 
 // Uncomment this line to use console.log
-// import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 contract HybridHiveCore {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -297,6 +297,90 @@ contract HybridHiveCore {
         require(_aggregatorIds.contains(_aggregatorId));
         //@todo check if parent connected this aggregator as a child
         return _aggregatorsData[_aggregatorId].parentAggregator;
+    }
+
+    /*
+        Token _tokenId  should be a part of the networks _networkRootAggregator
+        _tokenId might not be 0
+    */
+
+    function getGlobalTokenShare(
+        uint256 _networkRootAggregator,
+        uint256 _tokenId,
+        address _account
+    ) public view returns (uint256) {
+        // @todo add validate if aggregator is root _networkRootAggregator
+        /*
+        uint256 globalShareValue = 0;
+        uint256 depthCounter = 0;
+        uint256 aggregatorPointer = 0;
+
+        while (aggregatorPointer != _networkRootAggregator) {
+            
+            aggregatorPointer _tokensData[_tokenId].parentAggregator 
+        }*/
+
+        return 0;
+    }
+
+    function getTokenNumberInNetwork(
+        uint256 _aggregatorId
+    ) public view returns (uint256) {
+        return _getTokenNumberInNetwork(_aggregatorId);
+    }
+
+    function _getTokenNumberInNetwork(
+        uint256 _entityId
+    ) private view returns (uint256) {
+        if (
+            _aggregatorsData[_entityId].aggregatedEntityType ==
+            IHybridHiveCore.EntityType.TOKEN
+        ) return _subEntities[_entityId].length();
+        else {
+            uint256 tokensCount = 0;
+            for (uint256 i = 0; i < _subEntities[_entityId].length(); i++) {
+                tokensCount += _getTokenNumberInNetwork(
+                    _subEntities[_entityId].at(i)
+                );
+            }
+            return tokensCount;
+        }
+    }
+
+    function getTokensInNetwork(
+        uint256 _aggregatorId
+    ) public view returns (uint256[] memory) {
+        uint256 tokensNumber = _getTokenNumberInNetwork(_aggregatorId);
+        uint256[] memory tokensIdList = new uint[](tokensNumber);
+        (tokensIdList, ) = _getTokensInNetwork(_aggregatorId, tokensIdList, 0);
+        return tokensIdList;
+    }
+
+    function _getTokensInNetwork(
+        uint256 _entityId,
+        uint256[] memory leafArray,
+        uint256 index
+    ) public view returns (uint256[] memory, uint256) {
+        if (
+            _aggregatorsData[_entityId].aggregatedEntityType ==
+            IHybridHiveCore.EntityType.TOKEN
+        ) {
+            for (uint256 i = 0; i < _subEntities[_entityId].length(); i++) {
+                leafArray[index] = _subEntities[_entityId].at(i);
+                index++;
+            }
+
+            return (leafArray, index);
+        } else {
+            for (uint256 i = 0; i < _subEntities[_entityId].length(); i++) {
+                (leafArray, index) = _getTokensInNetwork(
+                    _subEntities[_entityId].at(i),
+                    leafArray,
+                    index
+                );
+            }
+            return (leafArray, index);
+        }
     }
 
     /**

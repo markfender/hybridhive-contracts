@@ -235,6 +235,8 @@ describe("HybridHiveCore", function () {
         setupInitState
       );
 
+      //console.log(await HybridHiveCore.getTokensInNetwork(6));
+
       expect(await HybridHiveCore.getTokenBalance(1, owner.address)).to.equal(
         1500
       );
