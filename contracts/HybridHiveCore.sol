@@ -45,6 +45,7 @@ contract HybridHiveCore {
 
     // GLOBAL TRANSFER
     mapping(uint256 => IHybridHiveCore.GlobalTransfer) private _globalTransfer;
+    uint256 totalGlobalTransfers;
 
     // Used as the URI for all token types by relying on ID substitution, e.g. https://token-cdn-domain/{id}.json
     string private _uri;
@@ -202,6 +203,37 @@ contract HybridHiveCore {
         _weights[_aggregatorId][_subEntity] = 0; // weight of the new entity should be zero
     }
 
+    // @todo recheck
+    function transfer(
+        uint256 tokenId,
+        address recipient,
+        uint256 amount
+    ) public {
+        // @todo validate if recipient is a allowedHolder or not
+        require(recipient != address(0), "Transfer to zero address");
+        require(
+            _balances[tokenId][msg.sender] >= amount,
+            "Insufficient balance"
+        );
+
+        _balances[tokenId][msg.sender] -= amount;
+        _balances[tokenId][recipient] += amount;
+    }
+
+    // GLOBAL TRANSFER
+
+    function addGlobalTransfer(
+        IHybridHiveCore.GlobalTransfer memory _globalTransferConfig
+    ) public {
+        // @todo add access validation
+        _globalTransfer[totalGlobalTransfers] = _globalTransferConfig;
+        totalGlobalTransfers++;
+    }
+
+    function globalTransferExecution(uint256 _globalTransferId) public {
+        // @todo add validation
+    }
+
     // INTERNAL FUNCTIONS
 
     function _updateSubEntitiesWeights(
@@ -299,11 +331,6 @@ contract HybridHiveCore {
         return _aggregatorsData[_aggregatorId].parentAggregator;
     }
 
-    /*
-        Token _tokenId  should be a part of the networks _networkRootAggregator
-        _tokenId might not be 0
-    */
-
     function getEntityName(
         IHybridHiveCore.EntityType _entityType,
         uint256 _entityId
@@ -337,6 +364,7 @@ contract HybridHiveCore {
         }
     }
 
+    // @todo unfinalized
     function getGlobalTokenShare(
         uint256 _networkRootAggregator,
         uint256 _tokenId,
@@ -363,6 +391,14 @@ contract HybridHiveCore {
             DENOMINATOR;
     }
 
+    /**
+     * Get the amount of tokens in specific branch
+     *
+     * @param _aggregatorId aggregator Id
+     *
+     * @return amount of tokens in spesific network branch under the _aggregatorId
+     *
+     */
     function getTokenNumberInNetwork(
         uint256 _aggregatorId
     ) public view returns (uint256) {
@@ -387,6 +423,14 @@ contract HybridHiveCore {
         }
     }
 
+    /**
+     * Get the list of token ids in the branch with the specified root
+     *
+     * @param _aggregatorId aggregator Id
+     *
+     * @return array of tokens
+     *
+     */
     function getTokensInNetwork(
         uint256 _aggregatorId
     ) public view returns (uint256[] memory) {
