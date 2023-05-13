@@ -205,25 +205,25 @@ describe("HybridHiveCore", function () {
       Ag[5] 60%
         Ag[1] 30%
           Token[1] 20%
-            account[0] 15% 1500  owner
-            account[1] 5% 500
+            account[owner] 15% 1500  owner
+            account[0] 5% 500
           Token[2] 10%
-            account[2] 7% 1400
-            account[3] 3% 600
+            account[1] 7% 1400
+            account[2] 3% 600
         Ag[2] 30%
           Token[3]30%
-            account[4] 30% 500
+            account[3] 30% 500
       Ag[6]40%
         Ag[3] 30%
           Token[4] 15%
-            account[5] 9% 999
-            account[6] 6% 666
+            account[4] 9% 999
+            account[5] 6% 666
           Token[5] 15%
-            account[7] 10% 300
-            account[8] 5% 200
+            account[6] 9% 300
+            account[7] 6% 200
         Ag[4] 10%
           Token[6] 10%
-            account[9] 10% 300
+            account[8] 10% 300
     */
 
     return { HybridHiveCore, owner, accounts };
@@ -299,14 +299,40 @@ describe("HybridHiveCore", function () {
       const { HybridHiveCore, owner, accounts } = await loadFixture(
         setupInitState
       );
-      //await HybridHiveCore._addSubEnitiesShare(5, 1, 5000000);
-      /*await HybridHiveCore.globalTransfer(
+      async function logAccountGlobalBalance(accountAddress, tokenId) {
+        const getUsetBalance = await HybridHiveCore.getTokenBalance(
+          tokenId,
+          accountAddress
+        );
+        const globalTokenShare = await HybridHiveCore.getGlobalTokenShare(
+          7,
+          tokenId,
+          getUsetBalance
+        );
+        console.log(accountAddress, getUsetBalance, globalTokenShare);
+      }
+
+      await logAccountGlobalBalance(owner.address, 1);
+      await logAccountGlobalBalance(accounts[6].address, 5);
+
+      const tx = await HybridHiveCore.globalTransfer(
+        5,
+        1,
+        accounts[6].address,
+        owner.address,
+        100
+      );
+      tx.wait();
+
+      await HybridHiveCore.globalTransfer(
         1,
         5,
         owner.address,
         accounts[6].address,
-        500
-      );*/
+        270
+      );
+      await logAccountGlobalBalance(owner.address, 1);
+      await logAccountGlobalBalance(accounts[6].address, 5);
     });
   });
 });

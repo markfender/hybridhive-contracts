@@ -235,6 +235,22 @@ contract HybridHiveCore {
     }
     function globalTransferExecution(uint256 _globalTransferId)
     */
+    function _calculateMintAmount(
+        uint256 _rootAggregator,
+        uint256 _tokenId,
+        address _recipient,
+        uint256 _globalShare
+    ) private view returns (uint256) {
+        uint256 initialTokenBalance = getTokenBalance(_tokenId, _recipient);
+        uint256 initialGlobalShare = getGlobalTokenShare(
+            _rootAggregator,
+            _tokenId,
+            initialTokenBalance
+        );
+        uint256 amountOfTokensToMint = (_globalShare * initialTokenBalance) /
+            initialGlobalShare;
+        return amountOfTokensToMint;
+    }
 
     function globalTransfer(
         uint256 _tokenFromId,
@@ -248,22 +264,119 @@ contract HybridHiveCore {
         uint256 rootAggregator = getRootAggregator(
             _tokensData[_tokenFromId].parentAggregator
         );
+        uint256 transferGlobalShare = getGlobalTokenShare(
+            rootAggregator,
+            _tokenFromId,
+            _amount
+        );
+
+        // Generate the path up and path down
+        uint256 pathFromLength = 1;
         // calculate path array length
-        uint256 pathLength = 0;
         // get length of path up
         uint256 entityParent = _tokensData[_tokenFromId].parentAggregator;
 
         for (uint256 i = 0; entityParent != 0; i++) {
             entityParent = _aggregatorsData[entityParent].parentAggregator;
-            pathLength++;
+            pathFromLength++;
         }
+        uint256 pathToLength = 1;
         // get length of path up
         entityParent = _tokensData[_tokenToId].parentAggregator;
         for (uint256 i = 0; entityParent != 0; i++) {
             entityParent = _aggregatorsData[entityParent].parentAggregator;
-            pathLength++;
+            pathToLength++;
         }
-        console.log(pathLength);
+        // add tokens id
+        uint256[] memory pathFrom = new uint[](pathFromLength);
+        uint256[] memory pathTo = new uint[](pathToLength);
+
+        entityParent = _tokensData[_tokenFromId].parentAggregator;
+        for (uint256 i = 0; entityParent != 0; i++) {
+            pathFrom[pathFrom.length - i - 2] = entityParent;
+            entityParent = _aggregatorsData[entityParent].parentAggregator;
+        }
+        pathFrom[pathFrom.length - 1] = _tokenFromId;
+
+        entityParent = _tokensData[_tokenToId].parentAggregator;
+        for (uint256 i = 0; entityParent != 0; i++) {
+            pathTo[pathTo.length - i - 2] = entityParent;
+            entityParent = _aggregatorsData[entityParent].parentAggregator;
+        }
+        pathTo[pathTo.length - 1] = _tokenToId;
+
+        console.log(pathFrom[0], pathFrom[1], pathFrom[2], pathFrom[3]);
+        console.log(pathTo[0], pathTo[1], pathTo[2], pathTo[3]);
+        //@todo validation should match pathFrom[0] == pathTo[0], and should match root
+
+        uint256 globalAggregatorSharePathFrom = _weights[rootAggregator][
+            pathFrom[1]
+        ];
+        uint256 globalAggregatorSharePathTo = _weights[rootAggregator][
+            pathTo[1]
+        ];
+        _weights[rootAggregator][pathFrom[1]] -= transferGlobalShare;
+        _weights[rootAggregator][pathTo[1]] += transferGlobalShare;
+
+        // iterative logic down to the rabit hole
+        for (uint i = 1; i < pathFrom.length - 1; i++) {
+            console.log(
+                "from to weights",
+                _weights[pathFrom[i]][pathFrom[i + 1]],
+                transferGlobalShare,
+                globalAggregatorSharePathFrom
+            );
+            uint256 burnableShare = (_weights[pathFrom[i]][pathFrom[i + 1]] *
+                transferGlobalShare) / globalAggregatorSharePathFrom;
+
+            globalAggregatorSharePathFrom =
+                (globalAggregatorSharePathFrom *
+                    _weights[pathFrom[i]][pathFrom[i + 1]]) /
+                DENOMINATOR;
+
+            // burn down
+            _updateSubEnitiesShare(
+                pathFrom[i],
+                pathFrom[i + 1],
+                burnableShare, // calculate
+                false
+            );
+        }
+
+        for (uint i = 1; i < pathTo.length - 1; i++) {
+            console.log(pathTo[i], pathTo[i + 1]);
+            uint256 mintableShare = (_weights[pathTo[i]][pathTo[i + 1]] *
+                transferGlobalShare) / globalAggregatorSharePathTo;
+
+            globalAggregatorSharePathTo =
+                (globalAggregatorSharePathTo *
+                    _weights[pathTo[i]][pathTo[i + 1]]) /
+                DENOMINATOR;
+            // mint down
+            _updateSubEnitiesShare(
+                pathTo[i],
+                pathTo[i + 1],
+                mintableShare, // calculate
+                true
+            );
+            console.log(
+                "down from to weights",
+                _weights[pathTo[i]][pathTo[i + 1]],
+                transferGlobalShare,
+                globalAggregatorSharePathTo
+            );
+        }
+        // mint tokens to sender // @todo fix
+        uint256 amountOfTokensToMint = _calculateMintAmount(
+            rootAggregator,
+            _tokenToId,
+            _recipient,
+            transferGlobalShare
+        );
+        console.log("aount To mint");
+        console.log(amountOfTokensToMint);
+        _mintToken(_tokenToId, _recipient, amountOfTokensToMint);
+        _burnToken(_tokenFromId, _sender, _amount);
     }
 
     // INTERNAL FUNCTIONS
@@ -275,9 +388,9 @@ contract HybridHiveCore {
     ) internal {
         // @todo add `_share` validation
         if (_action) {
-            _weights[_aggregatorId][_entityIdFrom] -= _share;
-        } else {
             _weights[_aggregatorId][_entityIdFrom] += _share;
+        } else {
+            _weights[_aggregatorId][_entityIdFrom] -= _share;
         }
 
         uint256 currentTotalShares = 0;
@@ -298,11 +411,13 @@ contract HybridHiveCore {
                 _subEntities[_aggregatorId].at(i)
             ] = newWeigth;
         }
-
         // @todo validate if such logic is sustainable
         if (newTotalShares < DENOMINATOR) {
-            _weights[_aggregatorId][_subEntities[_aggregatorId].at(0)] += 1;
-            assert(newTotalShares + 1 == DENOMINATOR);
+            uint256 hotFix = DENOMINATOR - newTotalShares;
+            _weights[_aggregatorId][
+                _subEntities[_aggregatorId].at(0)
+            ] += hotFix;
+            assert(newTotalShares + hotFix == DENOMINATOR);
         } else {
             assert(newTotalShares == DENOMINATOR);
         }
@@ -328,14 +443,14 @@ contract HybridHiveCore {
 
     function _burnToken(
         uint256 _tokenId,
-        address _recepient,
+        address _account,
         uint256 _amount
     ) internal {
         IHybridHiveCore.TokenData storage tokenData = _tokensData[_tokenId];
         // DO NOT CHECK IF RECIPIENT IS A MEMBER
         // it should be possible to burn tokens even if holder is removed from the allowed holder list
 
-        _balances[_tokenId][_recepient] -= _amount;
+        _balances[_tokenId][_account] -= _amount;
         tokenData.totalSupply -= _amount;
     }
 
