@@ -268,5 +268,45 @@ describe("HybridHiveCore", function () {
         10000000
       );
     });
+
+    it("Should properly convert global share into spesific tokens amount", async function () {
+      const { HybridHiveCore, owner, accounts } = await loadFixture(
+        setupInitState
+      );
+
+      expect(
+        await HybridHiveCore.getTokensAmountFromShare(7, 1, 10000000) // 10% DENOMINATOR equals 100%
+      ).to.equal(1000);
+
+      expect(
+        await HybridHiveCore.getTokensAmountFromShare(7, 2, 3000000)
+      ).to.equal(600);
+
+      expect(
+        await HybridHiveCore.getTokensAmountFromShare(7, 3, 3000000)
+      ).to.equal(50);
+    });
+
+    it("Should properly get root aggregator in the network", async function () {
+      const { HybridHiveCore, owner, accounts } = await loadFixture(
+        setupInitState
+      );
+
+      expect(await HybridHiveCore.getRootAggregator(3)).to.equal(7);
+    });
+
+    it("Should properly commit the global transfer", async function () {
+      const { HybridHiveCore, owner, accounts } = await loadFixture(
+        setupInitState
+      );
+      //await HybridHiveCore._addSubEnitiesShare(5, 1, 5000000);
+      /*await HybridHiveCore.globalTransfer(
+        1,
+        5,
+        owner.address,
+        accounts[6].address,
+        500
+      );*/
+    });
   });
 });

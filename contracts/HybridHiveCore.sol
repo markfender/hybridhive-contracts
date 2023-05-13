@@ -17,6 +17,8 @@ contract HybridHiveCore {
         1. add events and event emiting
         2. errors messages
         3. avoid circles in the tree
+        4. switch to the absolute weights representations of the aggregator subentities
+        5. use the fixed point lib
     
     */
 
@@ -221,7 +223,9 @@ contract HybridHiveCore {
     }
 
     // GLOBAL TRANSFER
-
+    /*
+    @todo separate adding of the global transfer to the pending list and execution of it
+    to prevent frontfuning of the tokens buring
     function addGlobalTransfer(
         IHybridHiveCore.GlobalTransfer memory _globalTransferConfig
     ) public {
@@ -229,22 +233,79 @@ contract HybridHiveCore {
         _globalTransfer[totalGlobalTransfers] = _globalTransferConfig;
         totalGlobalTransfers++;
     }
+    function globalTransferExecution(uint256 _globalTransferId)
+    */
 
-    function globalTransferExecution(uint256 _globalTransferId) public {
+    function globalTransfer(
+        uint256 _tokenFromId,
+        uint256 _tokenToId,
+        address _sender,
+        address _recipient,
+        uint256 _amount
+    ) public {
         // @todo add validation
+        // @todo validate if it is same as root of `_tokenToId`
+        uint256 rootAggregator = getRootAggregator(
+            _tokensData[_tokenFromId].parentAggregator
+        );
+        // calculate path array length
+        uint256 pathLength = 0;
+        // get length of path up
+        uint256 entityParent = _tokensData[_tokenFromId].parentAggregator;
+
+        for (uint256 i = 0; entityParent != 0; i++) {
+            entityParent = _aggregatorsData[entityParent].parentAggregator;
+            pathLength++;
+        }
+        // get length of path up
+        entityParent = _tokensData[_tokenToId].parentAggregator;
+        for (uint256 i = 0; entityParent != 0; i++) {
+            entityParent = _aggregatorsData[entityParent].parentAggregator;
+            pathLength++;
+        }
+        console.log(pathLength);
     }
 
     // INTERNAL FUNCTIONS
-
-    function _updateSubEntitiesWeights(
+    function _updateSubEnitiesShare(
         uint256 _aggregatorId,
         uint256 _entityIdFrom,
-        uint256 _entityIdTo,
-        uint256 _share // DENOMINATOR = 100%
+        uint256 _share, // DENOMINATOR equals 100%,
+        bool _action // false - if remove share, true id add share
     ) internal {
-        require(_share > 0);
-        _weights[_aggregatorId][_entityIdFrom] -= _share;
-        _weights[_aggregatorId][_entityIdTo] += _share;
+        // @todo add `_share` validation
+        if (_action) {
+            _weights[_aggregatorId][_entityIdFrom] -= _share;
+        } else {
+            _weights[_aggregatorId][_entityIdFrom] += _share;
+        }
+
+        uint256 currentTotalShares = 0;
+        for (uint256 i = 0; i < _subEntities[_aggregatorId].length(); i++) {
+            currentTotalShares += _weights[_aggregatorId][
+                _subEntities[_aggregatorId].at(i)
+            ];
+        }
+        uint256 adjastmentFactor = (DENOMINATOR * DENOMINATOR) /
+            currentTotalShares;
+        uint256 newTotalShares = 0;
+        for (uint256 i = 0; i < _subEntities[_aggregatorId].length(); i++) {
+            uint256 newWeigth = (adjastmentFactor *
+                _weights[_aggregatorId][_subEntities[_aggregatorId].at(i)]) /
+                DENOMINATOR;
+            newTotalShares += newWeigth;
+            _weights[_aggregatorId][
+                _subEntities[_aggregatorId].at(i)
+            ] = newWeigth;
+        }
+
+        // @todo validate if such logic is sustainable
+        if (newTotalShares < DENOMINATOR) {
+            _weights[_aggregatorId][_subEntities[_aggregatorId].at(0)] += 1;
+            assert(newTotalShares + 1 == DENOMINATOR);
+        } else {
+            assert(newTotalShares == DENOMINATOR);
+        }
     }
 
     // TOKEN INTERNAL FUCNTIONS
@@ -279,6 +340,15 @@ contract HybridHiveCore {
     }
 
     // GETTER FUNCTIONS
+    // @todo add validation, and notice that it doesn't work for tokens
+    function getRootAggregator(
+        uint256 _aggregatorId
+    ) public view returns (uint256) {
+        if (_aggregatorsData[_aggregatorId].parentAggregator == 0)
+            return _aggregatorId;
+        return
+            getRootAggregator(_aggregatorsData[_aggregatorId].parentAggregator);
+    }
 
     /**
      * Check if account is allowed to hold spesific token
@@ -292,6 +362,13 @@ contract HybridHiveCore {
         address _account
     ) public view returns (bool) {
         return _allowedHolders[_tokenId].contains(_account);
+    }
+
+    function getAllowedTokenHolders(
+        uint256 _tokenId
+    ) public view returns (address[] memory) {
+        //@todo add validations if
+        return _allowedHolders[_tokenId].values();
     }
 
     /**
@@ -409,6 +486,30 @@ contract HybridHiveCore {
         return
             (globalShare * _weights[_networkRootAggregator][entityId]) /
             DENOMINATOR;
+    }
+
+    /**
+     *   @dev opposite to getGlobalTokenShare function
+     *   calculate amount of tokens (_tokenId) based on global share
+     */
+    function getTokensAmountFromShare(
+        uint256 _networkRootAggregator,
+        uint256 _tokenId,
+        uint256 _globalShare
+    ) public view returns (uint256) {
+        // @todo add validation
+        // @todo add validate if aggregator is root _networkRootAggregator
+        uint256 tokenTotalSupplyShare = getGlobalTokenShare(
+            _networkRootAggregator,
+            _tokenId,
+            _tokensData[_tokenId].totalSupply
+        );
+        // validate if toke supply exceeds the given _globalShare
+        require(tokenTotalSupplyShare > _globalShare);
+
+        return
+            (_tokensData[_tokenId].totalSupply * _globalShare) /
+            tokenTotalSupplyShare;
     }
 
     /**

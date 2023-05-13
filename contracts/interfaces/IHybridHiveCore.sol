@@ -26,11 +26,11 @@ contract IHybridHiveCore {
     }
 
     struct GlobalTransfer {
-        uint256 status; // 0 - doesn't exist, 10 - excecuted
-        uint256 value; // GLOBAL SHARE
+        uint256 status; // 0 - doesn't exist @dev for future development
         uint256 tokenFromId;
         uint256 tokenToId;
         address sender;
         address recipient;
+        uint256 amount; // absolute value of tokenFromId value
     }
 }
