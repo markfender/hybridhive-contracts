@@ -307,7 +307,8 @@ contract HybridHiveCore {
     function getGlobalTokenShare(
         uint256 _networkRootAggregator,
         uint256 _tokenId,
-        address _account
+        address _account,
+        uint256 _tokensAmount
     ) public view returns (uint256) {
         // @todo add validate if aggregator is root _networkRootAggregator
         /*
@@ -360,7 +361,7 @@ contract HybridHiveCore {
         uint256 _entityId,
         uint256[] memory leafArray,
         uint256 index
-    ) public view returns (uint256[] memory, uint256) {
+    ) private view returns (uint256[] memory, uint256) {
         if (
             _aggregatorsData[_entityId].aggregatedEntityType ==
             IHybridHiveCore.EntityType.TOKEN
