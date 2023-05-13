@@ -304,24 +304,63 @@ contract HybridHiveCore {
         _tokenId might not be 0
     */
 
+    function getEntityName(
+        IHybridHiveCore.EntityType _entityType,
+        uint256 _entityId
+    ) public view returns (string memory) {
+        if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
+            return _tokensData[_entityId].name;
+        } else if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
+            return _aggregatorsData[_entityId].name;
+        }
+    }
+
+    function getEntitySymbol(
+        IHybridHiveCore.EntityType _entityType,
+        uint256 _entityId
+    ) public view returns (string memory) {
+        if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
+            return _tokensData[_entityId].symbol;
+        } else if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
+            return _aggregatorsData[_entityId].symbol;
+        }
+    }
+
+    function getEntityURI(
+        IHybridHiveCore.EntityType _entityType,
+        uint256 _entityId
+    ) public view returns (string memory) {
+        if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
+            return _tokensData[_entityId].uri;
+        } else if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
+            return _aggregatorsData[_entityId].uri;
+        }
+    }
+
     function getGlobalTokenShare(
         uint256 _networkRootAggregator,
         uint256 _tokenId,
-        address _account,
         uint256 _tokensAmount
     ) public view returns (uint256) {
+        // @audit add validation
         // @todo add validate if aggregator is root _networkRootAggregator
-        /*
-        uint256 globalShareValue = 0;
-        uint256 depthCounter = 0;
-        uint256 aggregatorPointer = 0;
+        uint256 globalShare = (DENOMINATOR * _tokensAmount) /
+            _tokensData[_tokenId].totalSupply;
+        uint256 entityId = _tokenId;
+        uint256 parentAggregatorId = _tokensData[_tokenId].parentAggregator;
 
-        while (aggregatorPointer != _networkRootAggregator) {
-            
-            aggregatorPointer _tokensData[_tokenId].parentAggregator 
-        }*/
+        while (parentAggregatorId != _networkRootAggregator) {
+            globalShare =
+                (globalShare * _weights[parentAggregatorId][entityId]) /
+                DENOMINATOR;
 
-        return 0;
+            entityId = parentAggregatorId;
+            parentAggregatorId = _aggregatorsData[entityId].parentAggregator;
+        }
+
+        return
+            (globalShare * _weights[_networkRootAggregator][entityId]) /
+            DENOMINATOR;
     }
 
     function getTokenNumberInNetwork(

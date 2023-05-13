@@ -235,12 +235,23 @@ describe("HybridHiveCore", function () {
         setupInitState
       );
 
-      //console.log(await HybridHiveCore.getTokensInNetwork(6));
-
       expect(await HybridHiveCore.getTokenBalance(1, owner.address)).to.equal(
         1500
       );
     });
+
+    it("Should properly calculate global token share correctly", async function () {
+      const { HybridHiveCore, owner, accounts } = await loadFixture(
+        setupInitState
+      );
+
+      expect(await HybridHiveCore.getGlobalTokenShare(7, 1, 1500)).to.equal(
+        14999999
+      );
+    });
+
+    //
+
     /*
     it("Should set the right owner", async function () {
       const { lock, owner } = await loadFixture(setupInitState);
