@@ -364,13 +364,33 @@ contract HybridHiveCore {
         }
     }
 
+    function getGlobalAggregatorShare(
+        uint256 _networkRootAggregator,
+        uint _aggregatorId
+    ) public view returns (uint256) {
+        uint256 entityId = _aggregatorId;
+        uint256 parentAggregatorId = _aggregatorsData[_aggregatorId]
+            .parentAggregator;
+        uint256 globalShare = _weights[parentAggregatorId][entityId];
+        while (parentAggregatorId != _networkRootAggregator) {
+            entityId = parentAggregatorId;
+            parentAggregatorId = _aggregatorsData[entityId].parentAggregator;
+
+            globalShare =
+                (globalShare * _weights[parentAggregatorId][entityId]) /
+                DENOMINATOR;
+        }
+
+        return globalShare;
+    }
+
     // @todo unfinalized
     function getGlobalTokenShare(
         uint256 _networkRootAggregator,
         uint256 _tokenId,
         uint256 _tokensAmount
     ) public view returns (uint256) {
-        // @audit add validation
+        // @todo add validation
         // @todo add validate if aggregator is root _networkRootAggregator
         uint256 globalShare = (DENOMINATOR * _tokensAmount) /
             _tokensData[_tokenId].totalSupply;
