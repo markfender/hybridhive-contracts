@@ -246,7 +246,7 @@ describe("HybridHiveCore", function () {
       );
 
       expect(await HybridHiveCore.getGlobalTokenShare(7, 1, 1500)).to.equal(
-        14999999
+        BN.from("149999998500000000000000000000000000000000")
       );
     });
 
@@ -256,16 +256,16 @@ describe("HybridHiveCore", function () {
       );
 
       expect(await HybridHiveCore.getGlobalAggregatorShare(6, 3)).to.equal(
-        75000000
+        BN.from("75000000")
       );
       expect(await HybridHiveCore.getGlobalAggregatorShare(7, 1)).to.equal(
-        30000000
+        BN.from("3000000000000000")
       );
       expect(await HybridHiveCore.getGlobalAggregatorShare(7, 6)).to.equal(
-        40000000
+        BN.from("40000000")
       );
       expect(await HybridHiveCore.getGlobalAggregatorShare(7, 4)).to.equal(
-        10000000
+        BN.from("1000000000000000")
       );
     });
 

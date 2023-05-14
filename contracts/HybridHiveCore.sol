@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.19;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import {UD60x18, convert} from "@prb/math/src/UD60x18.sol";
 
 import "./interfaces/IHybridHiveCore.sol";
 
@@ -43,7 +44,7 @@ contract HybridHiveCore {
     // Mapping from aggregator ID to a set of aggregated entities
     mapping(uint256 => EnumerableSet.UintSet) private _subEntities;
     // Mapping from aggregator ID to a mapping from sub entity Id to sub entity share
-    mapping(uint256 => mapping(uint256 => uint256)) private _weights; // all subentities shares should be equal to 100 000 000 = 100%
+    mapping(uint256 => mapping(uint256 => UD60x18)) private _weights; // all subentities shares should be equal to 100 000 000 = 100%
 
     // GLOBAL TRANSFER
     mapping(uint256 => IHybridHiveCore.GlobalTransfer) private _globalTransfer;
@@ -161,15 +162,13 @@ contract HybridHiveCore {
         }
 
         // sum of all weights should be equal to 100%
-        uint256 totalWeights = 0;
         for (uint256 i = 0; i < _aggregatedEntitiesWeights.length; i++) {
-            totalWeights += _aggregatedEntitiesWeights[i];
-
-            _weights[newAggregatorId][
-                _aggregatedEntities[i]
-            ] = _aggregatedEntitiesWeights[i];
+            _weights[newAggregatorId][_aggregatedEntities[i]] = convert(
+                _aggregatedEntitiesWeights[i]
+            );
         }
-        require(totalWeights == DENOMINATOR);
+        //@todo recheck if it is needed
+        //require(totalWeights == DENOMINATOR);
 
         return newAggregatorId;
     }
@@ -202,7 +201,7 @@ contract HybridHiveCore {
     ) public onlyOperator(_entityType, _aggregatorId) {
         require(_subEntities[_aggregatorId].add(_subEntity));
 
-        _weights[_aggregatorId][_subEntity] = 0; // weight of the new entity should be zero
+        _weights[_aggregatorId][_subEntity] = convert(0); // weight of the new entity should be zero
     }
 
     // @todo recheck
@@ -239,17 +238,18 @@ contract HybridHiveCore {
         uint256 _rootAggregator,
         uint256 _tokenId,
         address _recipient,
-        uint256 _globalShare
+        UD60x18 _globalShare
     ) private view returns (uint256) {
-        uint256 initialTokenBalance = getTokenBalance(_tokenId, _recipient);
-        uint256 initialGlobalShare = getGlobalTokenShare(
+        uint256 initialTokenBalance = _balances[_tokenId][_recipient];
+        UD60x18 initialGlobalShare = getGlobalTokenShare(
             _rootAggregator,
             _tokenId,
             initialTokenBalance
         );
-        uint256 amountOfTokensToMint = (_globalShare * initialTokenBalance) /
-            initialGlobalShare;
-        return amountOfTokensToMint;
+        UD60x18 amountOfTokensToMint = _globalShare
+            .mul(convert(initialTokenBalance))
+            .div(initialGlobalShare);
+        return convert(amountOfTokensToMint);
     }
 
     function globalTransfer(
@@ -264,7 +264,7 @@ contract HybridHiveCore {
         uint256 rootAggregator = getRootAggregator(
             _tokensData[_tokenFromId].parentAggregator
         );
-        uint256 transferGlobalShare = getGlobalTokenShare(
+        UD60x18 transferGlobalShare = getGlobalTokenShare(
             rootAggregator,
             _tokenFromId,
             _amount
@@ -305,34 +305,32 @@ contract HybridHiveCore {
         }
         pathTo[pathTo.length - 1] = _tokenToId;
 
-        console.log(pathFrom[0], pathFrom[1], pathFrom[2], pathFrom[3]);
-        console.log(pathTo[0], pathTo[1], pathTo[2], pathTo[3]);
         //@todo validation should match pathFrom[0] == pathTo[0], and should match root
 
-        uint256 globalAggregatorSharePathFrom = _weights[rootAggregator][
+        UD60x18 globalAggregatorSharePathFrom = _weights[rootAggregator][
             pathFrom[1]
         ];
-        uint256 globalAggregatorSharePathTo = _weights[rootAggregator][
+        UD60x18 globalAggregatorSharePathTo = _weights[rootAggregator][
             pathTo[1]
         ];
-        _weights[rootAggregator][pathFrom[1]] -= transferGlobalShare;
-        _weights[rootAggregator][pathTo[1]] += transferGlobalShare;
+        _weights[rootAggregator][pathFrom[1]] = _weights[rootAggregator][
+            pathFrom[1]
+        ].sub(transferGlobalShare);
+        _weights[rootAggregator][pathTo[1]] = _weights[rootAggregator][
+            pathTo[1]
+        ].add(transferGlobalShare);
 
         // iterative logic down to the rabit hole
         for (uint i = 1; i < pathFrom.length - 1; i++) {
-            console.log(
-                "from to weights",
-                _weights[pathFrom[i]][pathFrom[i + 1]],
-                transferGlobalShare,
-                globalAggregatorSharePathFrom
-            );
-            uint256 burnableShare = (_weights[pathFrom[i]][pathFrom[i + 1]] *
-                transferGlobalShare) / globalAggregatorSharePathFrom;
+            UD60x18 burnableShare = _weights[pathFrom[i]][pathFrom[i + 1]]
+                .mul(transferGlobalShare)
+                .div(globalAggregatorSharePathFrom);
 
-            globalAggregatorSharePathFrom =
-                (globalAggregatorSharePathFrom *
-                    _weights[pathFrom[i]][pathFrom[i + 1]]) /
-                DENOMINATOR;
+            globalAggregatorSharePathFrom = (
+                globalAggregatorSharePathFrom.mul(
+                    _weights[pathFrom[i]][pathFrom[i + 1]]
+                )
+            );
 
             // burn down
             _updateSubEnitiesShare(
@@ -344,26 +342,19 @@ contract HybridHiveCore {
         }
 
         for (uint i = 1; i < pathTo.length - 1; i++) {
-            console.log(pathTo[i], pathTo[i + 1]);
-            uint256 mintableShare = (_weights[pathTo[i]][pathTo[i + 1]] *
-                transferGlobalShare) / globalAggregatorSharePathTo;
+            UD60x18 mintableShare = _weights[pathTo[i]][pathTo[i + 1]]
+                .mul(transferGlobalShare)
+                .div(globalAggregatorSharePathTo);
 
-            globalAggregatorSharePathTo =
-                (globalAggregatorSharePathTo *
-                    _weights[pathTo[i]][pathTo[i + 1]]) /
-                DENOMINATOR;
+            globalAggregatorSharePathTo = globalAggregatorSharePathTo.mul(
+                _weights[pathTo[i]][pathTo[i + 1]]
+            );
             // mint down
             _updateSubEnitiesShare(
                 pathTo[i],
                 pathTo[i + 1],
                 mintableShare, // calculate
                 true
-            );
-            console.log(
-                "down from to weights",
-                _weights[pathTo[i]][pathTo[i + 1]],
-                transferGlobalShare,
-                globalAggregatorSharePathTo
             );
         }
         // mint tokens to sender // @todo fix
@@ -373,8 +364,6 @@ contract HybridHiveCore {
             _recipient,
             transferGlobalShare
         );
-        console.log("aount To mint");
-        console.log(amountOfTokensToMint);
         _mintToken(_tokenToId, _recipient, amountOfTokensToMint);
         _burnToken(_tokenFromId, _sender, _amount);
     }
@@ -383,43 +372,36 @@ contract HybridHiveCore {
     function _updateSubEnitiesShare(
         uint256 _aggregatorId,
         uint256 _entityIdFrom,
-        uint256 _share, // DENOMINATOR equals 100%,
+        UD60x18 _share,
         bool _action // false - if remove share, true id add share
     ) internal {
         // @todo add `_share` validation
         if (_action) {
-            _weights[_aggregatorId][_entityIdFrom] += _share;
+            _weights[_aggregatorId][_entityIdFrom] = _weights[_aggregatorId][
+                _entityIdFrom
+            ].add(_share);
         } else {
-            _weights[_aggregatorId][_entityIdFrom] -= _share;
+            _weights[_aggregatorId][_entityIdFrom] = _weights[_aggregatorId][
+                _entityIdFrom
+            ].sub(_share);
         }
 
-        uint256 currentTotalShares = 0;
+        UD60x18 currentTotalShares = convert(0);
         for (uint256 i = 0; i < _subEntities[_aggregatorId].length(); i++) {
-            currentTotalShares += _weights[_aggregatorId][
-                _subEntities[_aggregatorId].at(i)
-            ];
+            currentTotalShares = currentTotalShares.add(
+                _weights[_aggregatorId][_subEntities[_aggregatorId].at(i)]
+            );
         }
-        uint256 adjastmentFactor = (DENOMINATOR * DENOMINATOR) /
-            currentTotalShares;
-        uint256 newTotalShares = 0;
+        UD60x18 adjastmentFactor = convert(1).div(currentTotalShares);
+
         for (uint256 i = 0; i < _subEntities[_aggregatorId].length(); i++) {
-            uint256 newWeigth = (adjastmentFactor *
-                _weights[_aggregatorId][_subEntities[_aggregatorId].at(i)]) /
-                DENOMINATOR;
-            newTotalShares += newWeigth;
+            UD60x18 newWeight = adjastmentFactor.mul(
+                _weights[_aggregatorId][_subEntities[_aggregatorId].at(i)]
+            );
+
             _weights[_aggregatorId][
                 _subEntities[_aggregatorId].at(i)
-            ] = newWeigth;
-        }
-        // @todo validate if such logic is sustainable
-        if (newTotalShares < DENOMINATOR) {
-            uint256 hotFix = DENOMINATOR - newTotalShares;
-            _weights[_aggregatorId][
-                _subEntities[_aggregatorId].at(0)
-            ] += hotFix;
-            assert(newTotalShares + hotFix == DENOMINATOR);
-        } else {
-            assert(newTotalShares == DENOMINATOR);
+            ] = newWeight;
         }
     }
 
@@ -451,6 +433,7 @@ contract HybridHiveCore {
         // it should be possible to burn tokens even if holder is removed from the allowed holder list
 
         _balances[_tokenId][_account] -= _amount;
+
         tokenData.totalSupply -= _amount;
     }
 
@@ -563,17 +546,17 @@ contract HybridHiveCore {
         uint256 entityId = _aggregatorId;
         uint256 parentAggregatorId = _aggregatorsData[_aggregatorId]
             .parentAggregator;
-        uint256 globalShare = _weights[parentAggregatorId][entityId];
+        UD60x18 globalShare = _weights[parentAggregatorId][entityId];
         while (parentAggregatorId != _networkRootAggregator) {
             entityId = parentAggregatorId;
             parentAggregatorId = _aggregatorsData[entityId].parentAggregator;
 
-            globalShare =
-                (globalShare * _weights[parentAggregatorId][entityId]) /
-                DENOMINATOR;
+            globalShare = globalShare.mul(
+                _weights[parentAggregatorId][entityId]
+            );
         }
 
-        return globalShare;
+        return convert(globalShare);
     }
 
     // @todo unfinalized
@@ -581,26 +564,25 @@ contract HybridHiveCore {
         uint256 _networkRootAggregator,
         uint256 _tokenId,
         uint256 _tokensAmount
-    ) public view returns (uint256) {
+    ) public view returns (UD60x18) {
         // @todo add validation
         // @todo add validate if aggregator is root _networkRootAggregator
-        uint256 globalShare = (DENOMINATOR * _tokensAmount) /
-            _tokensData[_tokenId].totalSupply;
+        UD60x18 globalShare = convert(_tokensAmount).div(
+            convert(_tokensData[_tokenId].totalSupply)
+        );
         uint256 entityId = _tokenId;
         uint256 parentAggregatorId = _tokensData[_tokenId].parentAggregator;
 
         while (parentAggregatorId != _networkRootAggregator) {
-            globalShare =
-                (globalShare * _weights[parentAggregatorId][entityId]) /
-                DENOMINATOR;
+            globalShare = globalShare.mul(
+                _weights[parentAggregatorId][entityId]
+            );
 
             entityId = parentAggregatorId;
             parentAggregatorId = _aggregatorsData[entityId].parentAggregator;
         }
 
-        return
-            (globalShare * _weights[_networkRootAggregator][entityId]) /
-            DENOMINATOR;
+        return globalShare.mul(_weights[_networkRootAggregator][entityId]);
     }
 
     /**
@@ -610,21 +592,23 @@ contract HybridHiveCore {
     function getTokensAmountFromShare(
         uint256 _networkRootAggregator,
         uint256 _tokenId,
-        uint256 _globalShare
-    ) public view returns (uint256) {
+        UD60x18 _globalShare
+    ) public view returns (UD60x18) {
         // @todo add validation
         // @todo add validate if aggregator is root _networkRootAggregator
-        uint256 tokenTotalSupplyShare = getGlobalTokenShare(
+        UD60x18 tokenTotalSupplyShare = getGlobalTokenShare(
             _networkRootAggregator,
             _tokenId,
             _tokensData[_tokenId].totalSupply
         );
         // validate if toke supply exceeds the given _globalShare
+        // @todo rewrite it according to the fixed point math
         require(tokenTotalSupplyShare > _globalShare);
 
         return
-            (_tokensData[_tokenId].totalSupply * _globalShare) /
-            tokenTotalSupplyShare;
+            convert(_tokensData[_tokenId].totalSupply).mul(_globalShare).div(
+                tokenTotalSupplyShare
+            );
     }
 
     /**

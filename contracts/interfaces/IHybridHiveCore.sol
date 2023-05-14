@@ -1,4 +1,6 @@
-pragma solidity ^0.8.9;
+pragma solidity 0.8.19;
+
+import {UD60x18} from "@prb/math/src/UD60x18.sol";
 
 contract IHybridHiveCore {
     enum EntityType {
