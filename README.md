@@ -1,13 +1,6 @@
-# Sample Hardhat Project
+# HybridHive smart contracts
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a script that deploys that contract.
+Frontend application: https://github.com/markfender/hybridhive-app
 
-Try running some of the following tasks:
+HybridHive is a novel token protocol that aims to solve the dilemma of choosing between multi-currency systems that drain value from the real economy, and single currency systems that lead to loss of sovereignty. It combines the advantages of single and multi-currency systems, providing local control, increasing liquidity, reducing risk and most importantly a severe decrease in transaction costs. It enables the creation of unlimited sub-communities with their own currencies, linked through “hives”.
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.js
-```
