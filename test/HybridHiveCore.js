@@ -3,7 +3,14 @@ const {
   loadFixture,
 } = require("@nomicfoundation/hardhat-network-helpers");
 const { expect } = require("chai");
-const BN = ethers.BigNumber;
+const FN = ethers.FixedNumber;
+const BN = ethers.BigNumber.from;
+const DECIMALS = BN("10").pow("18");
+
+function toPercentageString(value) {
+  return FN.fromValue(value.toString(), 18).round(17).toString();
+}
+
 describe("HybridHiveCore", function () {
   // We define a fixture to reuse the same setup in every test.
   // We use loadFixture to run this setup once, snapshot that state,
@@ -109,7 +116,7 @@ describe("HybridHiveCore", function () {
         0, // _parentAggregator
         1, // _aggregatedEntityType 1 - token, 2 aggregator
         [1, 2], // _aggregatedEntities
-        [66666666, 33333334] // _aggregatedEntitiesWeights
+        [DECIMALS.mul(2).div(3), DECIMALS.div(3)] // _aggregatedEntitiesWeights
       );
       // connect tokens to the aggregator
       await TokenOperator.updateParentAggregator(1, 1);
@@ -126,7 +133,7 @@ describe("HybridHiveCore", function () {
         0, // _parentAggregator
         1,
         [3], // _aggregatedEntities
-        [100000000] // _aggregatedEntitiesWeights
+        [DECIMALS] // _aggregatedEntitiesWeights
       );
       await TokenOperator.updateParentAggregator(3, 2);
 
@@ -139,7 +146,7 @@ describe("HybridHiveCore", function () {
         0, // _parentAggregator
         1,
         [4, 5], // _aggregatedEntities
-        [50000000, 50000000] // _aggregatedEntitiesWeights
+        [DECIMALS.div(2), DECIMALS.div(2)] // _aggregatedEntitiesWeights
       );
       await TokenOperator.updateParentAggregator(4, 3);
       await TokenOperator.updateParentAggregator(5, 3);
@@ -153,7 +160,7 @@ describe("HybridHiveCore", function () {
         0, // _parentAggregator
         1,
         [6], // _aggregatedEntities
-        [100000000] // _aggregatedEntitiesWeights
+        [DECIMALS] // _aggregatedEntitiesWeights
       );
       await TokenOperator.updateParentAggregator(6, 4);
 
@@ -166,7 +173,7 @@ describe("HybridHiveCore", function () {
         0, // _parentAggregator
         2,
         [1, 2], // _aggregatedEntities
-        [50000000, 50000000] // _aggregatedEntitiesWeights
+        [DECIMALS.div(2), DECIMALS.div(2)] // _aggregatedEntitiesWeights
       );
       await AggregatorOperator.updateParentAggregator(1, 5);
       await AggregatorOperator.updateParentAggregator(2, 5);
@@ -180,7 +187,7 @@ describe("HybridHiveCore", function () {
         0, // _parentAggregator
         2,
         [3, 4], // _aggregatedEntities
-        [75000000, 25000000] // _aggregatedEntitiesWeights
+        [DECIMALS.mul(3).div(4), DECIMALS.div(4)] // _aggregatedEntitiesWeights
       );
       await AggregatorOperator.updateParentAggregator(3, 6);
       await AggregatorOperator.updateParentAggregator(4, 6);
@@ -194,7 +201,7 @@ describe("HybridHiveCore", function () {
         0, // _parentAggregator
         2,
         [5, 6], // _aggregatedEntities
-        [60000000, 40000000] // _aggregatedEntitiesWeights
+        [DECIMALS.mul(3).div(5), DECIMALS.mul(2).div(5)] // _aggregatedEntitiesWeights
       );
       await AggregatorOperator.updateParentAggregator(5, 7);
       await AggregatorOperator.updateParentAggregator(6, 7);
@@ -229,7 +236,7 @@ describe("HybridHiveCore", function () {
     return { HybridHiveCore, owner, accounts };
   }
 
-  describe("Deployment", function () {
+  describe("HibridHive Getters", function () {
     it("Should get user token balance correctly", async function () {
       const { HybridHiveCore, owner, accounts } = await loadFixture(
         setupInitState
@@ -244,10 +251,9 @@ describe("HybridHiveCore", function () {
       const { HybridHiveCore, owner, accounts } = await loadFixture(
         setupInitState
       );
+      const result = await HybridHiveCore.getGlobalTokenShare(7, 1, 1500);
 
-      expect(await HybridHiveCore.getGlobalTokenShare(7, 1, 1500)).to.equal(
-        BN.from("149999998500000000000000000000000000000000")
-      );
+      expect(toPercentageString(result)).to.equal("0.15");
     });
 
     it("Should properly calculate global aggregator share", async function () {
@@ -255,18 +261,21 @@ describe("HybridHiveCore", function () {
         setupInitState
       );
 
-      expect(await HybridHiveCore.getGlobalAggregatorShare(6, 3)).to.equal(
-        BN.from("75000000")
-      );
-      expect(await HybridHiveCore.getGlobalAggregatorShare(7, 1)).to.equal(
-        BN.from("3000000000000000")
-      );
-      expect(await HybridHiveCore.getGlobalAggregatorShare(7, 6)).to.equal(
-        BN.from("40000000")
-      );
-      expect(await HybridHiveCore.getGlobalAggregatorShare(7, 4)).to.equal(
-        BN.from("1000000000000000")
-      );
+      expect(
+        toPercentageString(await HybridHiveCore.getGlobalAggregatorShare(6, 3))
+      ).to.equal("0.75");
+
+      expect(
+        toPercentageString(await HybridHiveCore.getGlobalAggregatorShare(7, 1))
+      ).to.equal("0.3");
+
+      expect(
+        toPercentageString(await HybridHiveCore.getGlobalAggregatorShare(7, 6))
+      ).to.equal("0.4");
+
+      expect(
+        toPercentageString(await HybridHiveCore.getGlobalAggregatorShare(7, 4))
+      ).to.equal("0.1");
     });
 
     it("Should properly convert global share into spesific tokens amount", async function () {
@@ -275,16 +284,24 @@ describe("HybridHiveCore", function () {
       );
 
       expect(
-        await HybridHiveCore.getTokensAmountFromShare(7, 1, 10000000) // 10% DENOMINATOR equals 100%
-      ).to.equal(1000);
+        await HybridHiveCore.getTokensAmountFromShare(7, 1, DECIMALS.div(10)) // 10% DENOMINATOR equals 100%
+      ).to.equal("1000");
 
       expect(
-        await HybridHiveCore.getTokensAmountFromShare(7, 2, 3000000)
-      ).to.equal(600);
+        await HybridHiveCore.getTokensAmountFromShare(
+          7,
+          2,
+          DECIMALS.mul(3).div(100)
+        )
+      ).to.equal("600");
 
       expect(
-        await HybridHiveCore.getTokensAmountFromShare(7, 3, 3000000)
-      ).to.equal(50);
+        await HybridHiveCore.getTokensAmountFromShare(
+          7,
+          3,
+          DECIMALS.mul(3).div(100)
+        )
+      ).to.equal("50");
     });
 
     it("Should properly get root aggregator in the network", async function () {

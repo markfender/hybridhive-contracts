@@ -109,7 +109,7 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         uint256 _parentAggregator,
         IHybridHiveCore.EntityType _aggregatedEntityType,
         uint256[] memory _aggregatedEntities, // @todo add validation _aggregatedEntities.len == _aggregatedEntitiesWeights.len
-        uint256[] memory _aggregatedEntitiesWeights // @todo should be equal to denminator
+        UD60x18[] memory _aggregatedEntitiesWeights // @todo should be equal to denminator
     ) public returns (uint256) {
         // @todo add validations
         require(_aggregatorOperator != address(0));
@@ -135,9 +135,9 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
 
         // sum of all weights should be equal to 100%
         for (uint256 i = 0; i < _aggregatedEntitiesWeights.length; i++) {
-            _weights[newAggregatorId][_aggregatedEntities[i]] = convert(
-                _aggregatedEntitiesWeights[i]
-            );
+            _weights[newAggregatorId][
+                _aggregatedEntities[i]
+            ] = _aggregatedEntitiesWeights[i];
         }
         //@todo recheck if it is needed
         //require(totalWeights == DENOMINATOR);
@@ -468,6 +468,7 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         return globalShare;
     }
 
+    //75 66
     // @todo unfinalized
     function getGlobalTokenShare(
         uint256 _networkRootAggregator,
@@ -476,6 +477,7 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
     ) public view returns (UD60x18) {
         // @todo add validation
         // @todo add validate if aggregator is root _networkRootAggregator
+
         UD60x18 globalShare = convert(_tokensAmount).div(
             convert(_tokensData[_tokenId].totalSupply)
         );
@@ -502,7 +504,7 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         uint256 _networkRootAggregator,
         uint256 _tokenId,
         UD60x18 _globalShare
-    ) public view returns (UD60x18) {
+    ) public view returns (uint256) {
         // @todo add validation
         // @todo add validate if aggregator is root _networkRootAggregator
         UD60x18 tokenTotalSupplyShare = getGlobalTokenShare(
@@ -515,8 +517,10 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         require(tokenTotalSupplyShare > _globalShare);
 
         return
-            convert(_tokensData[_tokenId].totalSupply).mul(_globalShare).div(
-                tokenTotalSupplyShare
+            convert(
+                convert(_tokensData[_tokenId].totalSupply)
+                    .mul(_globalShare)
+                    .div(tokenTotalSupplyShare)
             );
     }
 
