@@ -5,11 +5,12 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {UD60x18, convert} from "@prb/math/src/UD60x18.sol";
 
 import "./interfaces/IHybridHiveCore.sol";
+import "./modules/HybridHiveGeneralGetters.sol";
 
 // Uncomment this line to use console.log
 import "hardhat/console.sol";
 
-contract HybridHiveCore {
+contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
 
@@ -20,38 +21,9 @@ contract HybridHiveCore {
         3. avoid circles in the tree
         4. switch to the absolute weights representations of the aggregator subentities
         5. use the fixed point lib
-    
+        6. recheck all access rights
+        7. add tokens decimals
     */
-
-    // CONSTANTS
-    uint256 public constant DENOMINATOR = 100000000; // 100 000 000
-
-    // TOKENS
-    // Set of all token Ids
-    EnumerableSet.UintSet private _tokenIds;
-    // Mapping from token ID to detailed tokens data
-    mapping(uint256 => IHybridHiveCore.TokenData) private _tokensData;
-    // Mapping from token ID to account balances
-    mapping(uint256 => mapping(address => uint256)) private _balances;
-    // Mapping from token ID to list of allowed holders
-    mapping(uint256 => EnumerableSet.AddressSet) private _allowedHolders;
-
-    // AGGREGATORS
-    // Set of all aggregator Ids
-    EnumerableSet.UintSet private _aggregatorIds;
-    // Mapping from aggregator ID to detailed aggregator date
-    mapping(uint256 => IHybridHiveCore.AggregatorData) private _aggregatorsData;
-    // Mapping from aggregator ID to a set of aggregated entities
-    mapping(uint256 => EnumerableSet.UintSet) private _subEntities;
-    // Mapping from aggregator ID to a mapping from sub entity Id to sub entity share
-    mapping(uint256 => mapping(uint256 => UD60x18)) private _weights; // all subentities shares should be equal to 100 000 000 = 100%
-
-    // GLOBAL TRANSFER
-    mapping(uint256 => IHybridHiveCore.GlobalTransfer) private _globalTransfer;
-    uint256 totalGlobalTransfers;
-
-    // Used as the URI for all token types by relying on ID substitution, e.g. https://token-cdn-domain/{id}.json
-    string private _uri;
 
     //MODIFIER
 
@@ -183,14 +155,19 @@ contract HybridHiveCore {
         // @todo validate if it matches the type
 
         require(
-            _aggregatorsData[_parentAggregatorId].aggregatedEntityType ==
-                _entityType
+            HybridHiveStorage
+                ._aggregatorsData[_parentAggregatorId]
+                .aggregatedEntityType == _entityType
         );
 
         if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
-            _aggregatorsData[_entityId].parentAggregator = _parentAggregatorId;
+            HybridHiveStorage
+                ._aggregatorsData[_entityId]
+                .parentAggregator = _parentAggregatorId;
         } else if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
-            _tokensData[_entityId].parentAggregator = _parentAggregatorId;
+            HybridHiveStorage
+                ._tokensData[_entityId]
+                .parentAggregator = _parentAggregatorId;
         }
     }
 
@@ -261,6 +238,7 @@ contract HybridHiveCore {
     ) public {
         // @todo add validation
         // @todo validate if it is same as root of `_tokenToId`
+
         uint256 rootAggregator = getRootAggregator(
             _tokensData[_tokenFromId].parentAggregator
         );
@@ -277,21 +255,27 @@ contract HybridHiveCore {
         uint256 entityParent = _tokensData[_tokenFromId].parentAggregator;
 
         for (uint256 i = 0; entityParent != 0; i++) {
-            entityParent = _aggregatorsData[entityParent].parentAggregator;
+            entityParent = HybridHiveStorage
+                ._aggregatorsData[entityParent]
+                .parentAggregator;
             pathFromLength++;
         }
         uint256 pathToLength = 1;
         // get length of path up
         entityParent = _tokensData[_tokenToId].parentAggregator;
         for (uint256 i = 0; entityParent != 0; i++) {
-            entityParent = _aggregatorsData[entityParent].parentAggregator;
+            entityParent = HybridHiveStorage
+                ._aggregatorsData[entityParent]
+                .parentAggregator;
             pathToLength++;
         }
         // add tokens id
         uint256[] memory pathFrom = new uint[](pathFromLength);
         uint256[] memory pathTo = new uint[](pathToLength);
 
-        entityParent = _tokensData[_tokenFromId].parentAggregator;
+        entityParent = HybridHiveStorage
+            ._tokensData[_tokenFromId]
+            .parentAggregator;
         for (uint256 i = 0; entityParent != 0; i++) {
             pathFrom[pathFrom.length - i - 2] = entityParent;
             entityParent = _aggregatorsData[entityParent].parentAggregator;
@@ -431,7 +415,6 @@ contract HybridHiveCore {
         IHybridHiveCore.TokenData storage tokenData = _tokensData[_tokenId];
         // DO NOT CHECK IF RECIPIENT IS A MEMBER
         // it should be possible to burn tokens even if holder is removed from the allowed holder list
-
         _balances[_tokenId][_account] -= _amount;
 
         tokenData.totalSupply -= _amount;
@@ -446,47 +429,6 @@ contract HybridHiveCore {
             return _aggregatorId;
         return
             getRootAggregator(_aggregatorsData[_aggregatorId].parentAggregator);
-    }
-
-    /**
-     * Check if account is allowed to hold spesific token
-     *
-     * @param _tokenId token Id
-     * @param _account account to check
-     *
-     */
-    function isAllowedTokenHolder(
-        uint256 _tokenId,
-        address _account
-    ) public view returns (bool) {
-        return _allowedHolders[_tokenId].contains(_account);
-    }
-
-    function getAllowedTokenHolders(
-        uint256 _tokenId
-    ) public view returns (address[] memory) {
-        //@todo add validations if
-        return _allowedHolders[_tokenId].values();
-    }
-
-    /**
-     * Get the absolute balance of spesific token
-     *
-     * @param _tokenId token Id
-     * @param _account: address of which we what to calculate the token global share
-     *
-     * Requirements:
-     * _tokenId might not be equal to 0
-     * _tokenId should exist
-     */
-    function getTokenBalance(
-        uint256 _tokenId,
-        address _account
-    ) public view returns (uint256) {
-        require(_tokenId > 0);
-        require(_tokenIds.contains(_tokenId));
-
-        return _balances[_tokenId][_account];
     }
 
     /**
@@ -506,43 +448,10 @@ contract HybridHiveCore {
         return _aggregatorsData[_aggregatorId].parentAggregator;
     }
 
-    function getEntityName(
-        IHybridHiveCore.EntityType _entityType,
-        uint256 _entityId
-    ) public view returns (string memory) {
-        if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
-            return _tokensData[_entityId].name;
-        } else if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
-            return _aggregatorsData[_entityId].name;
-        }
-    }
-
-    function getEntitySymbol(
-        IHybridHiveCore.EntityType _entityType,
-        uint256 _entityId
-    ) public view returns (string memory) {
-        if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
-            return _tokensData[_entityId].symbol;
-        } else if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
-            return _aggregatorsData[_entityId].symbol;
-        }
-    }
-
-    function getEntityURI(
-        IHybridHiveCore.EntityType _entityType,
-        uint256 _entityId
-    ) public view returns (string memory) {
-        if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
-            return _tokensData[_entityId].uri;
-        } else if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
-            return _aggregatorsData[_entityId].uri;
-        }
-    }
-
     function getGlobalAggregatorShare(
         uint256 _networkRootAggregator,
         uint _aggregatorId
-    ) public view returns (uint256) {
+    ) public view returns (UD60x18) {
         uint256 entityId = _aggregatorId;
         uint256 parentAggregatorId = _aggregatorsData[_aggregatorId]
             .parentAggregator;
@@ -556,7 +465,7 @@ contract HybridHiveCore {
             );
         }
 
-        return convert(globalShare);
+        return globalShare;
     }
 
     // @todo unfinalized
