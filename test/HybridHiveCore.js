@@ -36,7 +36,7 @@ describe("HybridHiveCore", function () {
     const TokenOperator = await TokenOperatorFactory.deploy();
     await TokenOperator.setCoreAddress(HybridHiveCore.address);
 
-    // @todo replace with generator
+    // @todo replace with loop
 
     {
       // create Token[1]
@@ -121,7 +121,6 @@ describe("HybridHiveCore", function () {
       // connect tokens to the aggregator
       await TokenOperator.updateParentAggregator(1, 1);
       await TokenOperator.updateParentAggregator(2, 1);
-
       // @todo attach token to upper aggregator
 
       // create Ag[2]
@@ -211,7 +210,7 @@ describe("HybridHiveCore", function () {
     Ag[7]
       Ag[5] 60%
         Ag[1] 30%
-          Token[1] 20%
+          Token[1] 20% 2000
             account[owner] 15% 1500  owner
             account[0] 5% 500
           Token[2] 10%
@@ -227,6 +226,32 @@ describe("HybridHiveCore", function () {
             account[5] 6% 666
           Token[5] 15%
             account[6] 9% 300
+            account[7] 6% 200
+        Ag[4] 10%
+          Token[6] 10%
+            account[8] 10% 300
+
+    */
+    /*
+    Ag[7]
+      Ag[5] 55%
+        Ag[1] 25%
+          Token[1] 15% 5000
+            account[owner] 10% 1000  owner
+            account[0] 5% 500
+          Token[2] 10%
+            account[1] 7% 1400
+            account[2] 3% 600
+        Ag[2] 30%
+          Token[3]30%
+            account[3] 30% 500
+      Ag[6]45%
+        Ag[3] 35%
+          Token[4] 15%
+            account[4] 9% 999
+            account[5] 6% 666
+          Token[5] 20%
+            account[6] 14% 300
             account[7] 6% 200
         Ag[4] 10%
           Token[6] 10%
@@ -251,9 +276,18 @@ describe("HybridHiveCore", function () {
       const { HybridHiveCore, owner, accounts } = await loadFixture(
         setupInitState
       );
-      const result = await HybridHiveCore.getGlobalTokenShare(7, 1, 1500);
+      let result = await HybridHiveCore.getGlobalValueShare(7, 1, 1, 1500);
 
       expect(toPercentageString(result)).to.equal("0.15");
+
+      result = await HybridHiveCore.getGlobalValueShare(
+        7,
+        2,
+        1,
+        DECIMALS.div(10)
+      );
+
+      expect(toPercentageString(result)).to.equal("0.03");
     });
 
     it("Should properly calculate global aggregator share", async function () {
@@ -284,20 +318,27 @@ describe("HybridHiveCore", function () {
       );
 
       expect(
-        await HybridHiveCore.getTokensAmountFromShare(7, 1, DECIMALS.div(10)) // 10% DENOMINATOR equals 100%
+        await HybridHiveCore.getAbsoluteAmountFromShare(
+          7,
+          1,
+          1,
+          DECIMALS.div(10)
+        )
       ).to.equal("1000");
 
       expect(
-        await HybridHiveCore.getTokensAmountFromShare(
+        await HybridHiveCore.getAbsoluteAmountFromShare(
           7,
+          1,
           2,
           DECIMALS.mul(3).div(100)
         )
       ).to.equal("600");
 
       expect(
-        await HybridHiveCore.getTokensAmountFromShare(
+        await HybridHiveCore.getAbsoluteAmountFromShare(
           7,
+          1,
           3,
           DECIMALS.mul(3).div(100)
         )
@@ -316,13 +357,64 @@ describe("HybridHiveCore", function () {
       const { HybridHiveCore, owner, accounts } = await loadFixture(
         setupInitState
       );
+      async function logNetworkTree(rootAggregator, space, globalRoot) {
+        const str = new Array(space + 1).join("-");
+
+        if (!globalRoot) globalRoot = rootAggregator;
+        let subEntities = await HybridHiveCore.getAggregatorSubEntities(
+          rootAggregator
+        );
+        const aggregatorParent = await HybridHiveCore.getAggregatorParent(
+          rootAggregator
+        );
+        if (aggregatorParent == 0)
+          console.log(rootAggregator, ` - global share 100%`);
+
+        for (entityId of subEntities[1]) {
+          if (subEntities[0] == 2) {
+            const shareOfEntity = await HybridHiveCore.getGlobalAggregatorShare(
+              globalRoot,
+              entityId
+            );
+            const totalSupply = await HybridHiveCore.getTotalSupply(
+              subEntities[0],
+              entityId
+            );
+            console.log(
+              str,
+              entityId,
+              ` - global share: ${shareOfEntity} (${totalSupply})`
+            );
+
+            await logNetworkTree(entityId, space + 2, globalRoot);
+          } else {
+            const totalSupply = await HybridHiveCore.getTotalSupply(
+              subEntities[0],
+              entityId
+            );
+            const shareOfEntity = await HybridHiveCore.getGlobalValueShare(
+              globalRoot,
+              1,
+              entityId,
+              totalSupply
+            );
+            console.log(
+              "---- ",
+              entityId,
+              ` - global share: ${shareOfEntity}  (${totalSupply})`
+            );
+          }
+        }
+      }
+
       async function logAccountGlobalBalance(accountAddress, tokenId) {
         const getUsetBalance = await HybridHiveCore.getTokenBalance(
           tokenId,
           accountAddress
         );
-        const globalTokenShare = await HybridHiveCore.getGlobalTokenShare(
+        const globalTokenShare = await HybridHiveCore.getGlobalValueShare(
           7,
+          1,
           tokenId,
           getUsetBalance
         );
@@ -331,23 +423,19 @@ describe("HybridHiveCore", function () {
 
       await logAccountGlobalBalance(owner.address, 1);
       await logAccountGlobalBalance(accounts[6].address, 5);
+      //await logNetworkTree(7, 0);
 
       const tx = await HybridHiveCore.globalTransfer(
-        5,
         1,
-        accounts[6].address,
+        5,
         owner.address,
-        100
+        accounts[6].address,
+        500
       );
       tx.wait();
 
-      await HybridHiveCore.globalTransfer(
-        1,
-        5,
-        owner.address,
-        accounts[6].address,
-        270
-      );
+      //await logNetworkTree(7, 0);
+
       await logAccountGlobalBalance(owner.address, 1);
       await logAccountGlobalBalance(accounts[6].address, 5);
     });

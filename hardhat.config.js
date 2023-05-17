@@ -10,7 +10,6 @@ module.exports = {
     goerli: {
       url: `https://goerli.infura.io/v3/${process.env.INFURA_API_KEY}`,
       accounts: [process.env.GOERLI_PRIVATE_KEY],
-      blockGasLimit: 300000000,
     },
   },
   etherscan: {

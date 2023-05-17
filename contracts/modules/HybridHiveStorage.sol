@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
+// @todo fix 0.254 is missing
+
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import "../interfaces/IHybridHiveCore.sol";
@@ -28,7 +30,7 @@ contract HybridHiveStorage {
     // Mapping from aggregator ID to a set of aggregated entities
     mapping(uint256 => EnumerableSet.UintSet) internal _subEntities; // @todo add ability to exclude from _subEntities list
     // Mapping from aggregator ID to a mapping from sub entity Id to sub entity share
-    mapping(uint256 => mapping(uint256 => UD60x18)) internal _weights; // all subentities shares should be equal to 100 000 000 = 100%
+    mapping(uint256 => mapping(uint256 => uint256)) internal _weights;
 
     // GLOBAL TRANSFER
     mapping(uint256 => IHybridHiveCore.GlobalTransfer) internal _globalTransfer;

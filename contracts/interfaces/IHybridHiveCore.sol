@@ -25,6 +25,7 @@ contract IHybridHiveCore {
         address operator;
         uint256 parentAggregator;
         EntityType aggregatedEntityType;
+        uint256 totalWeight;
     }
 
     struct GlobalTransfer {

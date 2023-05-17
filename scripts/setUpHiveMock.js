@@ -10,9 +10,8 @@ async function setupInitState() {
   const [deployer] = await ethers.getSigners();
   const accounts = [
     "0x0Ba4E7bfb5cDc3c1a06E0722bC8286B7B7D39d5d",
-    "0x00000000219ab540356cBB839Cbe05303d7705Fa",
-    "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     "0xBE0eB53F46cd790Cd13851d5EFf43D12404d33E8",
+    "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
     "0xDA9dfA130Df4dE4673b89022EE50ff26f6EA73Cf",
     "0x0716a17FBAeE714f1E6aB0f9d59edbC5f09815C0",
 
@@ -28,32 +27,32 @@ async function setupInitState() {
   const HybridHiveCoreFactory = await ethers.getContractFactory(
     "HybridHiveCore"
   );
-  const HybridHiveCore = await HybridHiveCoreFactory.deploy();
+  const HybridHiveCore = await HybridHiveCoreFactory.attach(
+    "0x48970e9366E603eF443B07180075237aC4426ac4"
+  );
   console.log("HybridHive Core Address", HybridHiveCore.address);
 
   const AggregatorOperatorFactory = await ethers.getContractFactory(
     "AggregatorOperatorMock"
   );
-  const AggregatorOperator = await AggregatorOperatorFactory.deploy();
-  let txWaitBuffer = await AggregatorOperator.setCoreAddress(
-    HybridHiveCore.address
+  const AggregatorOperator = await AggregatorOperatorFactory.attach(
+    "0x27135087F16Ca2015573cB1A9Debd0F17e728Ae1"
   );
-  txWaitBuffer.wait();
   console.log("Aggregator Operator Address", AggregatorOperator.address);
 
   const TokenOperatorFactory = await ethers.getContractFactory(
     "TokenOperatorMock"
   );
-  const TokenOperator = await TokenOperatorFactory.deploy();
-  txWaitBuffer = await TokenOperator.setCoreAddress(HybridHiveCore.address);
-  txWaitBuffer.wait();
+  const TokenOperator = await TokenOperatorFactory.attach(
+    "0x813465223045bE053904f1c1E10BBCf7d3348894"
+  );
 
   console.log("Token Operator Address", TokenOperator.address);
   // @todo replace with generator
-
+  let txWaitBuffer;
   {
     // create Token[1]
-    txWaitObject = await HybridHiveCore.createToken(
+    txWaitBuffer = await HybridHiveCore.createToken(
       "Token[1]", // _tokenName
       "TKN[1]", // _tokenSymbol
       "", // _tokenURI
