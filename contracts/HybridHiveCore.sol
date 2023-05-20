@@ -54,6 +54,7 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
     ) public returns (uint256) {
         // @todo add validations
         require(_tokenOperator != address(0));
+        require(_tokenHolders.length == _holderBalances.length);
 
         uint256 newTokenId = _tokenIds.length() + 1;
         assert(!_tokenIds.contains(newTokenId)); // there should be no token id
@@ -81,7 +82,6 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         address _account,
         uint256 _amount
     ) public onlyOperator(IHybridHiveCore.EntityType.TOKEN, _tokenId) {
-        // @todo implement onlyOperator(_tokenId)
         _mintToken(_tokenId, _account, _amount);
     }
 
@@ -90,7 +90,6 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         address _account,
         uint256 _amount
     ) public onlyOperator(IHybridHiveCore.EntityType.TOKEN, _tokenId) {
-        // @todo implement onlyOperator(_tokenId)
         _burnToken(_tokenId, _account, _amount);
     }
 
@@ -114,6 +113,9 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
     ) public returns (uint256) {
         // @todo add validations
         require(_aggregatorOperator != address(0));
+        require(
+            _aggregatedEntities.length == _aggregatedEntitiesWeights.length
+        );
 
         uint256 newAggregatorId = _aggregatorIds.length() + 1;
         assert(!_aggregatorIds.contains(newAggregatorId)); // there should be no such aggregator id
@@ -134,15 +136,12 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
             _subEntities[newAggregatorId].add(_aggregatedEntities[i]);
         }
 
-        // sum of all weights should be equal to 100%
         for (uint256 i = 0; i < _aggregatedEntitiesWeights.length; i++) {
             _weights[newAggregatorId][
                 _aggregatedEntities[i]
             ] = _aggregatedEntitiesWeights[i];
             newAggregator.totalWeight += _aggregatedEntitiesWeights[i];
         }
-        //@todo recheck if it is needed
-        //require(totalWeights == DENOMINATOR);
 
         return newAggregatorId;
     }
@@ -234,9 +233,6 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
             _tokenFromId,
             _amount
         );
-        // @todo ITERATE UP FROM `_tokenFromId` and probably up from `_tokenToId`
-
-        //@todo validation should match pathFrom[0] == pathTo[0], and should match root
 
         // @todo optimize it
         uint256 entityId = _tokenFromId;

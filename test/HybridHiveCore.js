@@ -5,7 +5,7 @@ const {
 const { expect } = require("chai");
 const FN = ethers.FixedNumber;
 const BN = ethers.BigNumber.from;
-const DECIMALS = BN("10").pow("18");
+const DECIMALS = BN("10").pow("18"); // @todo move to constants
 
 function toPercentageString(value) {
   return FN.fromValue(value.toString(), 18).round(17).toString();
