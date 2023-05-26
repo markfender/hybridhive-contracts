@@ -425,12 +425,20 @@ describe("HybridHiveCore", function () {
       await logAccountGlobalBalance(accounts[6].address, 5);
       //await logNetworkTree(7, 0);
 
-      const tx = await HybridHiveCore.globalTransfer(
+      let tx = await HybridHiveCore.globalTransfer(
         1,
         5,
         owner.address,
         accounts[6].address,
         500
+      );
+      tx.wait();
+      tx = await HybridHiveCore.connect(accounts[6]).globalTransfer(
+        5,
+        1,
+        accounts[6].address,
+        owner.address,
+        166
       );
       tx.wait();
 
