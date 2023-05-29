@@ -19,6 +19,8 @@ describe("HybridHiveCore", function () {
     // Contracts are deployed using the first signer/account by default
     const [owner, ...accounts] = await ethers.getSigners();
 
+    const TokenMockFactory = await ethers.getContractFactory("TokenMock");
+
     const HybridHiveCoreFactory = await ethers.getContractFactory(
       "HybridHiveCore"
     );
@@ -37,76 +39,93 @@ describe("HybridHiveCore", function () {
     await TokenOperator.setCoreAddress(HybridHiveCore.address);
 
     // @todo replace with loop
+    // recipients [{address, amount}]
+    const createNewToken = async (tokenName, recipients) => {
+      const newToken = await TokenMockFactory.deploy(tokenName, tokenName, 0);
+      for (recipient in recipinets) {
+        await newToken.mint(recipinet.address, recipinet.amount);
+      }
+      return newToken;
+    };
+    const token1 = await createNewToken("Token[1]", [
+      {
+        address: owner.address,
+        amount: 1500,
+      },
+      {
+        address: accounts[0].address,
+        amount: 500,
+      },
+    ]);
+    console.log(await token1.balanceOf(owner.address));
+    /*
+    // create Token[1]
+    await HybridHiveCore.createToken(
+      "Token[1]", // _tokenName
+      "TKN[1]", // _tokenSymbol
+      "", // _tokenURI
+      TokenOperator.address, // _tokenOperator
+      0, // _parentAggregator
+      [owner.address, accounts[0].address], // _tokenHolders
+      [1500, 500] // _holderBalances
+    );
 
-    {
-      // create Token[1]
-      await HybridHiveCore.createToken(
-        "Token[1]", // _tokenName
-        "TKN[1]", // _tokenSymbol
-        "", // _tokenURI
-        TokenOperator.address, // _tokenOperator
-        0, // _parentAggregator
-        [owner.address, accounts[0].address], // _tokenHolders
-        [1500, 500] // _holderBalances
-      );
+    // create Token[2]
+    await HybridHiveCore.createToken(
+      "Token[2]", // _tokenName
+      "TKN[2]", // _tokenSymbol
+      "", // _tokenURI
+      TokenOperator.address, // _tokenOperator
+      0, // _parentAggregator
+      [accounts[1].address, accounts[2].address], // _tokenHolders
+      [1400, 600] // _holderBalances
+    );
 
-      // create Token[2]
-      await HybridHiveCore.createToken(
-        "Token[2]", // _tokenName
-        "TKN[2]", // _tokenSymbol
-        "", // _tokenURI
-        TokenOperator.address, // _tokenOperator
-        0, // _parentAggregator
-        [accounts[1].address, accounts[2].address], // _tokenHolders
-        [1400, 600] // _holderBalances
-      );
+    // create Token[3]
+    await HybridHiveCore.createToken(
+      "Token[3]", // _tokenName
+      "TKN[3]", // _tokenSymbol
+      "", // _tokenURI
+      TokenOperator.address, // _tokenOperator
+      0, // _parentAggregator
+      [accounts[3].address], // _tokenHolders
+      [500] // _holderBalances
+    );
 
-      // create Token[3]
-      await HybridHiveCore.createToken(
-        "Token[3]", // _tokenName
-        "TKN[3]", // _tokenSymbol
-        "", // _tokenURI
-        TokenOperator.address, // _tokenOperator
-        0, // _parentAggregator
-        [accounts[3].address], // _tokenHolders
-        [500] // _holderBalances
-      );
+    // create Token[4]
+    await HybridHiveCore.createToken(
+      "Token[4]", // _tokenName
+      "TKN[4]", // _tokenSymbol
+      "", // _tokenURI
+      TokenOperator.address, // _tokenOperator
+      0, // _parentAggregator
+      [accounts[4].address, accounts[5].address], // _tokenHolders
+      [999, 666] // _holderBalances
+    );
 
-      // create Token[4]
-      await HybridHiveCore.createToken(
-        "Token[4]", // _tokenName
-        "TKN[4]", // _tokenSymbol
-        "", // _tokenURI
-        TokenOperator.address, // _tokenOperator
-        0, // _parentAggregator
-        [accounts[4].address, accounts[5].address], // _tokenHolders
-        [999, 666] // _holderBalances
-      );
+    // create Token[5]
+    await HybridHiveCore.createToken(
+      "Token[5]", // _tokenName
+      "TKN[5]", // _tokenSymbol
+      "", // _tokenURI
+      TokenOperator.address, // _tokenOperator
+      0, // _parentAggregator
+      [accounts[6].address, accounts[7].address], // _tokenHolders
+      [300, 200] // _holderBalances
+    );
 
-      // create Token[5]
-      await HybridHiveCore.createToken(
-        "Token[5]", // _tokenName
-        "TKN[5]", // _tokenSymbol
-        "", // _tokenURI
-        TokenOperator.address, // _tokenOperator
-        0, // _parentAggregator
-        [accounts[6].address, accounts[7].address], // _tokenHolders
-        [300, 200] // _holderBalances
-      );
-
-      // create Token[6]
-      await HybridHiveCore.createToken(
-        "Token[6]", // _tokenName
-        "TKN[6]", // _tokenSymbol
-        "", // _tokenURI
-        TokenOperator.address, // _tokenOperator
-        0, // _parentAggregator
-        [accounts[8].address], // _tokenHolders
-        [300] // _holderBalances
-      );
-    }
-
-    {
+    // create Token[6]
+    await HybridHiveCore.createToken(
+      "Token[6]", // _tokenName
+      "TKN[6]", // _tokenSymbol
+      "", // _tokenURI
+      TokenOperator.address, // _tokenOperator
+      0, // _parentAggregator
+      [accounts[8].address], // _tokenHolders
+      [300] // _holderBalances
+    );
+    */
+    /*
       // create Ag[1]
       await HybridHiveCore.createAggregator(
         "Ag[1]", // _aggregatorName
@@ -204,7 +223,7 @@ describe("HybridHiveCore", function () {
       );
       await AggregatorOperator.updateParentAggregator(5, 7);
       await AggregatorOperator.updateParentAggregator(6, 7);
-    }
+    */
 
     /* schema to setup as an initial state
     Ag[7]

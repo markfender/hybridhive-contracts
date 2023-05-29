@@ -4,6 +4,8 @@ pragma solidity 0.8.19;
 import "../interfaces/IHybridHiveCore.sol";
 import "./HybridHiveStorage.sol";
 
+import "../mocks/TokenMock.sol";
+
 // @todo separate functions for tokens from functions for aggregators
 
 contract HybridHiveGeneralGetters is HybridHiveStorage {
@@ -15,7 +17,7 @@ contract HybridHiveGeneralGetters is HybridHiveStorage {
         uint256 _entityId
     ) public view returns (string memory) {
         if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
-            return _tokensData[_entityId].name;
+            return TokenMock(address(uint160(_entityId))).name();
         } else if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
             return _aggregatorsData[_entityId].name;
         }
@@ -26,7 +28,7 @@ contract HybridHiveGeneralGetters is HybridHiveStorage {
         uint256 _entityId
     ) public view returns (string memory) {
         if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
-            return _tokensData[_entityId].symbol;
+            return TokenMock(address(uint160(_entityId))).symbol();
         } else if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
             return _aggregatorsData[_entityId].symbol;
         }
@@ -48,30 +50,10 @@ contract HybridHiveGeneralGetters is HybridHiveStorage {
         uint256 _entityId
     ) public view returns (uint256) {
         if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
-            return _tokensData[_entityId].totalSupply;
+            return TokenMock(address(uint160(_entityId))).totalSupply();
         } else if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
             return _aggregatorsData[_entityId].totalWeight;
         }
-    }
-
-    /**
-     * Get the absolute balance of spesific token
-     *
-     * @param _tokenId token Id
-     * @param _account: address of which we what to calculate the token global share
-     *
-     * Requirements:
-     * _tokenId might not be equal to 0
-     * _tokenId should exist
-     */
-    function getTokenBalance(
-        uint256 _tokenId,
-        address _account
-    ) public view returns (uint256) {
-        require(_tokenId > 0);
-        require(_tokenIds.contains(_tokenId));
-
-        return _balances[_tokenId][_account];
     }
 
     // @todo add comments

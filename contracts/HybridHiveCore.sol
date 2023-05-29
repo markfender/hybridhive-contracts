@@ -7,6 +7,9 @@ import {UD60x18, convert} from "@prb/math/src/UD60x18.sol";
 import "./interfaces/IHybridHiveCore.sol";
 import "./modules/HybridHiveGeneralGetters.sol";
 
+// @todo replace it with an interface
+import "./mocks/TokenMock.sol";
+
 // Uncomment this line to use console.log
 import "hardhat/console.sol";
 
@@ -33,7 +36,7 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         uint256 _entityId
     ) {
         if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
-            require(_tokenIds.contains(_entityId));
+            require(_tokenSet.contains(_entityId));
             require(_tokensData[_entityId].operator == msg.sender);
         } else if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
             require(_aggregatorIds.contains(_entityId));
@@ -44,19 +47,21 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
     }
 
     function mintToken(
-        address _tokenAddress,
+        uint256 _tokenId,
         address _account,
         uint256 _amount
-    ) public onlyOperator(IHybridHiveCore.EntityType.TOKEN, _tokenAddress) {
-        ERC20(_tokenAddress).mint(_account, _amount);
+    ) public onlyOperator(IHybridHiveCore.EntityType.TOKEN, _tokenId) {
+        address tokenAddress = address(uint160(_tokenId));
+        TokenMock(tokenAddress).mint(_account, _amount);
     }
 
     function burnToken(
-        address _tokenId,
+        uint256 _tokenId,
         address _account,
         uint256 _amount
-    ) public onlyOperator(IHybridHiveCore.EntityType.TOKEN, _tokenAddress) {
-        ERC20(_tokenAddress).mint(_account, _amount);
+    ) public onlyOperator(IHybridHiveCore.EntityType.TOKEN, _tokenId) {
+        address tokenAddress = address(uint160(_tokenId));
+        TokenMock(tokenAddress).mint(_account, _amount);
     }
 
     function createAggregator(
@@ -106,21 +111,22 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
 
     // GENERAL FUCNCTIONS
     //@todo REWORK IT
+    // @todo what if few aggregatorks added token
     function addToken(
         address _tokenAddress,
         string memory _tokenURI,
         address _tokenOperator,
         uint256 _parentAggregator
-    )
-        public
-        onlyOperator(IHybridHiveCore.EntityType.AGGREGATOR, _parentAggregator)
-    {
+    ) public {
         require(_tokenOperator != address(0));
+        require(msg.sender == TokenMock(_tokenAddress).owner()); // @todo verify that there is such function
+        uint256 tokenId = uint256(uint160(_tokenAddress));
+        require(_subEntities[_parentAggregator].contains(tokenId));
         // @todo validate that there is no such token address
         // assert(!_tokenSet.contains(_tokenAddress));
-        _tokenSet.add(_tokenAddress);
+        assert(_tokenSet.add(tokenId));
 
-        IHybridHiveCore.TokenData storage newToken = _tokensData[_tokenAddress]; // skip the first token index
+        IHybridHiveCore.TokenData storage newToken = _tokensData[tokenId]; // skip the first token index
         newToken.uri = _tokenURI;
         newToken.operator = _tokenOperator;
         newToken.parentAggregator = _parentAggregator;
@@ -128,9 +134,11 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
 
     /**
      *
-     * Workflow to connect token to the platform
-     * Step 1: Aggregator aggreed to connect token, accepting to the list, set owner might set operator and uri
-     * Step 2: Transfer token ownership to the Core platform
+     * Workflow to connect token to the platform/ store token address as uint256 just for compatibility reasons
+     * Step 1: Aggregator aggreed to connect token accepting to the list
+     * Step 2: Set owner might set operator and uri
+     * Step 3: Transfer token ownership to the Core platform
+     * Step 4: Confirm to add token to the list
      *
      */
     //@todo REWORK IT
@@ -138,7 +146,7 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
     function isTokenConnected(
         address _tokenAddress
     ) public view returns (bool) {
-        return _tokenAddress.owner() == address(this); // @todo update meta-transactions
+        return TokenMock(_tokenAddress).owner() == address(this); // @todo update meta-transactions
     }
 
     // @todo restrict control to onlyOperatorValidator
@@ -167,33 +175,17 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         }
     }
 
+    // @audit rework
+    // @audit check if token is connected
     function addSubEntity(
         IHybridHiveCore.EntityType _entityType,
         uint256 _aggregatorId,
-        uint256 _subEntity
+        uint256 _subEntity, // if it is ERC20 token it should be uint256(TOKEN_ADDRESS)
+        uint256 _weight
     ) public onlyOperator(_entityType, _aggregatorId) {
         require(_subEntities[_aggregatorId].add(_subEntity));
 
-        _weights[_aggregatorId][_subEntity] = 0; // weight of the new entity should be zero
-    }
-
-    // @todo recheck
-    // @todo add operatos checks
-    function transfer(
-        uint256 _tokenId,
-        address _recipient,
-        uint256 _amount
-    ) public {
-        require(isAllowedTokenHolder(_tokenId, _recipient));
-
-        require(_recipient != address(0), "Transfer to zero address");
-        require(
-            _balances[_tokenId][msg.sender] >= _amount,
-            "Insufficient balance"
-        );
-
-        _balances[_tokenId][msg.sender] -= _amount;
-        _balances[_tokenId][_recipient] += _amount;
+        _weights[_aggregatorId][_subEntity] = _weight; // weight of the new entity should be zero
     }
 
     // GLOBAL TRANSFER
@@ -244,13 +236,14 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         // @todo optimize it
         uint256 entityId = _tokenFromId;
         uint256 parentEntity = _tokensData[entityId].parentAggregator;
-        uint256 parentTotalSupplay = _tokensData[entityId].totalSupply;
+        uint256 parentTotalSupplay = TokenMock(address(uint160(entityId)))
+            .totalSupply();
         UD60x18 operationalShare = convert(_amount).div(
             convert(parentTotalSupplay)
         );
         uint256 operationalValue;
 
-        _burnToken(_tokenFromId, _sender, _amount);
+        burnToken(_tokenFromId, _sender, _amount);
         while (parentEntity != 0) {
             operationalValue = convert(
                 convert(_weights[parentEntity][entityId]).mul(operationalShare)
@@ -290,7 +283,8 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
             entityId = pathDown[i + 1];
             parentEntity = pathDown[i];
             if (i == pathDown.length - 2) {
-                parentTotalSupplay = _tokensData[entityId].totalSupply;
+                parentTotalSupplay = TokenMock(address(uint160(entityId)))
+                    .totalSupply();
             } else {
                 parentTotalSupplay = _aggregatorsData[entityId].totalWeight;
             }
@@ -311,7 +305,7 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
             );
         }
 
-        _mintToken(_tokenToId, _recipient, operationalValue);
+        mintToken(_tokenToId, _recipient, operationalValue);
     }
 
     // INTERNAL FUNCTIONS
@@ -367,7 +361,7 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         uint256 entityId = _entityId;
         uint256 parentAggregatorId;
         if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
-            totalAmount = _tokensData[entityId].totalSupply;
+            totalAmount = TokenMock(address(uint160(entityId))).totalSupply();
             parentAggregatorId = _tokensData[entityId].parentAggregator;
         } else if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
             totalAmount = _aggregatorsData[entityId].totalWeight;
@@ -407,8 +401,10 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         // @todo add validate if aggregator is root _networkRootAggregator
         uint256 totalAmount;
         if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
-            totalAmount = _tokensData[_tokensData[_entityId].parentAggregator]
-                .totalSupply;
+            // @todo recheck if it possible
+            totalAmount = TokenMock(
+                address(uint160(_tokensData[_entityId].parentAggregator))
+            ).totalSupply();
         } else if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
             totalAmount = _aggregatorsData[
                 _aggregatorsData[_entityId].parentAggregator

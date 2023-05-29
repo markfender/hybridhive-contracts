@@ -13,11 +13,11 @@ contract HybridHiveStorage {
 
     // TOKENS // @todo remove underscore
     // Set of all token Ids
-    EnumerableSet.AddressSet internal _tokenSet;
+    EnumerableSet.UintSet internal _tokenSet;
     // Mapping from token ID to detailed tokens data
-    mapping(address => IHybridHiveCore.TokenData) internal _tokensData;
+    mapping(uint256 => IHybridHiveCore.TokenData) internal _tokensData;
     // Mapping from token ID to list of allowed holders
-    mapping(address => EnumerableSet.AddressSet) internal _allowedHolders; // @todo add ability to exclude from _allowedHolders mapping
+    mapping(uint256 => EnumerableSet.AddressSet) internal _allowedHolders; // @todo probably remove this list
 
     // AGGREGATORS
     // Set of all aggregator Ids
