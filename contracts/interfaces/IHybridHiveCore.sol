@@ -10,12 +10,9 @@ contract IHybridHiveCore {
     }
 
     struct TokenData {
-        string name;
-        string symbol;
         string uri;
-        address operator;
+        address operator; // entity liable foe
         uint256 parentAggregator;
-        uint256 totalSupply;
     }
 
     struct AggregatorData {

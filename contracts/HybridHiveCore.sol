@@ -43,62 +43,20 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         _;
     }
 
-    function createToken(
-        string memory _tokenName,
-        string memory _tokenSymbol,
-        string memory _tokenURI,
-        address _tokenOperator, // @todo check if it has appropriabe fields like `delegate`
-        uint256 _parentAggregator,
-        address[] memory _tokenHolders, //@todo add validation _tokenCommunityMembers.len == _memberBalances.len
-        uint256[] memory _holderBalances
-    ) public returns (uint256) {
-        // @todo add validations
-        require(_tokenOperator != address(0));
-        require(_tokenHolders.length == _holderBalances.length);
-
-        uint256 newTokenId = _tokenIds.length() + 1;
-        assert(!_tokenIds.contains(newTokenId)); // there should be no token id
-        _tokenIds.add(newTokenId);
-
-        IHybridHiveCore.TokenData storage newToken = _tokensData[newTokenId]; // skip the first token index
-        newToken.name = _tokenName;
-        newToken.symbol = _tokenSymbol;
-        newToken.uri = _tokenURI;
-        newToken.operator = _tokenOperator;
-        newToken.parentAggregator = _parentAggregator;
-
-        for (uint256 i = 0; i < _tokenHolders.length; i++) {
-            // Add account to the allowed token holder list
-            _addAllowedHolder(newTokenId, _tokenHolders[i]);
-
-            _mintToken(newTokenId, _tokenHolders[i], _holderBalances[i]);
-        }
-
-        return newTokenId;
-    }
-
     function mintToken(
-        uint256 _tokenId,
+        address _tokenAddress,
         address _account,
         uint256 _amount
-    ) public onlyOperator(IHybridHiveCore.EntityType.TOKEN, _tokenId) {
-        _mintToken(_tokenId, _account, _amount);
+    ) public onlyOperator(IHybridHiveCore.EntityType.TOKEN, _tokenAddress) {
+        ERC20(_tokenAddress).mint(_account, _amount);
     }
 
     function burnToken(
-        uint256 _tokenId,
+        address _tokenId,
         address _account,
         uint256 _amount
-    ) public onlyOperator(IHybridHiveCore.EntityType.TOKEN, _tokenId) {
-        _burnToken(_tokenId, _account, _amount);
-    }
-
-    // @todo add validations
-    function addAllowedHolder(
-        uint256 _tokenId,
-        address _newAllowedHolder
-    ) public onlyOperator(IHybridHiveCore.EntityType.TOKEN, _tokenId) {
-        _addAllowedHolder(_tokenId, _newAllowedHolder);
+    ) public onlyOperator(IHybridHiveCore.EntityType.TOKEN, _tokenAddress) {
+        ERC20(_tokenAddress).mint(_account, _amount);
     }
 
     function createAggregator(
@@ -147,7 +105,44 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
     }
 
     // GENERAL FUCNCTIONS
+    //@todo REWORK IT
+    function addToken(
+        address _tokenAddress,
+        string memory _tokenURI,
+        address _tokenOperator,
+        uint256 _parentAggregator
+    )
+        public
+        onlyOperator(IHybridHiveCore.EntityType.AGGREGATOR, _parentAggregator)
+    {
+        require(_tokenOperator != address(0));
+        // @todo validate that there is no such token address
+        // assert(!_tokenSet.contains(_tokenAddress));
+        _tokenSet.add(_tokenAddress);
+
+        IHybridHiveCore.TokenData storage newToken = _tokensData[_tokenAddress]; // skip the first token index
+        newToken.uri = _tokenURI;
+        newToken.operator = _tokenOperator;
+        newToken.parentAggregator = _parentAggregator;
+    }
+
+    /**
+     *
+     * Workflow to connect token to the platform
+     * Step 1: Aggregator aggreed to connect token, accepting to the list, set owner might set operator and uri
+     * Step 2: Transfer token ownership to the Core platform
+     *
+     */
+    //@todo REWORK IT
+    // @todo addd disconect function
+    function isTokenConnected(
+        address _tokenAddress
+    ) public view returns (bool) {
+        return _tokenAddress.owner() == address(this); // @todo update meta-transactions
+    }
+
     // @todo restrict control to onlyOperatorValidator
+    // @todo rework for new token standart
     function updateParentAggregator(
         IHybridHiveCore.EntityType _entityType,
         uint256 _entityId,
@@ -320,37 +315,6 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
     }
 
     // INTERNAL FUNCTIONS
-
-    // TOKEN INTERNAL FUCNTIONS
-    function _addAllowedHolder(uint256 _tokenId, address _account) internal {
-        // @todo add validations
-        require(_allowedHolders[_tokenId].add(_account));
-    }
-
-    function _mintToken(
-        uint256 _tokenId,
-        address _recepient,
-        uint256 _amount
-    ) internal {
-        IHybridHiveCore.TokenData storage tokenData = _tokensData[_tokenId];
-        require(isAllowedTokenHolder(_tokenId, _recepient)); // @todo consider moving this condition to modifier
-
-        _balances[_tokenId][_recepient] += _amount;
-        tokenData.totalSupply += _amount;
-    }
-
-    function _burnToken(
-        uint256 _tokenId,
-        address _account,
-        uint256 _amount
-    ) internal {
-        IHybridHiveCore.TokenData storage tokenData = _tokensData[_tokenId];
-        // DO NOT CHECK IF RECIPIENT IS A MEMBER
-        // it should be possible to burn tokens even if holder is removed from the allowed holder list
-        _balances[_tokenId][_account] -= _amount;
-
-        tokenData.totalSupply -= _amount;
-    }
 
     // GETTER FUNCTIONS
 
