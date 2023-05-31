@@ -23,4 +23,18 @@ contract AggregatorOperatorMock is Ownable {
             _parentAggregatorId
         );
     }
+
+    function addAggregatorDetails(
+        uint256 _aggregatorId,
+        string memory _aggregatorURI,
+        address _aggregatorOperator,
+        uint256 _parentAggregatorId
+    ) public onlyOwner {
+        hybridHiveCore.addAggregatorDetails(
+            _aggregatorId,
+            _aggregatorURI,
+            _aggregatorOperator,
+            _parentAggregatorId
+        );
+    }
 }

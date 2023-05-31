@@ -38,192 +38,265 @@ describe("HybridHiveCore", function () {
     const TokenOperator = await TokenOperatorFactory.deploy();
     await TokenOperator.setCoreAddress(HybridHiveCore.address);
 
-    // @todo replace with loop
-    // recipients [{address, amount}]
-    const createNewToken = async (tokenName, recipients) => {
-      const newToken = await TokenMockFactory.deploy(tokenName, tokenName, 0);
-      for (recipient in recipinets) {
-        await newToken.mint(recipinet.address, recipinet.amount);
+    const createNewToken = async (tokenName, tokenSymbol, recipients) => {
+      const newToken = await TokenMockFactory.deploy(tokenName, tokenSymbol, 0);
+      for (recipient of recipients) {
+        await newToken.mint(recipient.address, recipient.amount);
       }
       return newToken;
     };
-    const token1 = await createNewToken("Token[1]", [
+    // @todo move to separate file
+    const tokensConfig = [
       {
-        address: owner.address,
-        amount: 1500,
+        name: "Token[1]",
+        symbol: "TKN[1]",
+        holders: [
+          {
+            address: owner.address,
+            amount: 1500,
+          },
+          {
+            address: accounts[0].address,
+            amount: 500,
+          },
+        ],
       },
       {
-        address: accounts[0].address,
-        amount: 500,
+        name: "Token[2]",
+        symbol: "TKN[2]",
+        holders: [
+          {
+            address: accounts[1].address,
+            amount: 1400,
+          },
+          {
+            address: accounts[2].address,
+            amount: 600,
+          },
+        ],
       },
-    ]);
-    console.log(await token1.balanceOf(owner.address));
-    /*
-    // create Token[1]
-    await HybridHiveCore.createToken(
-      "Token[1]", // _tokenName
-      "TKN[1]", // _tokenSymbol
-      "", // _tokenURI
-      TokenOperator.address, // _tokenOperator
-      0, // _parentAggregator
-      [owner.address, accounts[0].address], // _tokenHolders
-      [1500, 500] // _holderBalances
-    );
+      {
+        name: "Token[3]",
+        symbol: "TKN[3]",
+        holders: [
+          {
+            address: accounts[3].address,
+            amount: 500,
+          },
+        ],
+      },
+      {
+        name: "Token[4]",
+        symbol: "TKN[4]",
+        holders: [
+          {
+            address: accounts[4].address,
+            amount: 999,
+          },
+          {
+            address: accounts[5].address,
+            amount: 666,
+          },
+        ],
+      },
+      {
+        name: "Token[5]",
+        symbol: "TKN[5]",
+        holders: [
+          {
+            address: accounts[6].address,
+            amount: 300,
+          },
+          {
+            address: accounts[7].address,
+            amount: 200,
+          },
+        ],
+      },
+      {
+        name: "Token[6]",
+        symbol: "TKN[6]",
+        holders: [
+          {
+            address: accounts[8].address,
+            amount: 300,
+          },
+        ],
+      },
+    ];
 
-    // create Token[2]
-    await HybridHiveCore.createToken(
-      "Token[2]", // _tokenName
-      "TKN[2]", // _tokenSymbol
-      "", // _tokenURI
-      TokenOperator.address, // _tokenOperator
-      0, // _parentAggregator
-      [accounts[1].address, accounts[2].address], // _tokenHolders
-      [1400, 600] // _holderBalances
-    );
+    let tokensList = [];
+    for (tokenConfig of tokensConfig) {
+      const newToken = await createNewToken(
+        tokenConfig.name,
+        tokenConfig.symbol,
+        tokenConfig.holders
+      );
+      tokensList.push(newToken);
+    }
 
-    // create Token[3]
-    await HybridHiveCore.createToken(
-      "Token[3]", // _tokenName
-      "TKN[3]", // _tokenSymbol
-      "", // _tokenURI
-      TokenOperator.address, // _tokenOperator
-      0, // _parentAggregator
-      [accounts[3].address], // _tokenHolders
-      [500] // _holderBalances
-    );
+    const createNewAggregator = async (
+      aggregatorName,
+      aggregatorSymbol,
+      subEntitiesType,
+      subEntities,
+      aggregatorId
+    ) => {
+      const subEntitiesIds = subEntities.map((entity) => entity.id);
+      const subEntitiesWeigths = subEntities.map((entity) => entity.weigth);
 
-    // create Token[4]
-    await HybridHiveCore.createToken(
-      "Token[4]", // _tokenName
-      "TKN[4]", // _tokenSymbol
-      "", // _tokenURI
-      TokenOperator.address, // _tokenOperator
-      0, // _parentAggregator
-      [accounts[4].address, accounts[5].address], // _tokenHolders
-      [999, 666] // _holderBalances
-    );
-
-    // create Token[5]
-    await HybridHiveCore.createToken(
-      "Token[5]", // _tokenName
-      "TKN[5]", // _tokenSymbol
-      "", // _tokenURI
-      TokenOperator.address, // _tokenOperator
-      0, // _parentAggregator
-      [accounts[6].address, accounts[7].address], // _tokenHolders
-      [300, 200] // _holderBalances
-    );
-
-    // create Token[6]
-    await HybridHiveCore.createToken(
-      "Token[6]", // _tokenName
-      "TKN[6]", // _tokenSymbol
-      "", // _tokenURI
-      TokenOperator.address, // _tokenOperator
-      0, // _parentAggregator
-      [accounts[8].address], // _tokenHolders
-      [300] // _holderBalances
-    );
-    */
-    /*
-      // create Ag[1]
-      await HybridHiveCore.createAggregator(
-        "Ag[1]", // _aggregatorName
-        "AG[1]", // _aggregatorSymbol
+      const newAggregator = await HybridHiveCore.createAggregator(
+        aggregatorName, // _aggregatorName
+        aggregatorSymbol, // _aggregatorSymbol
         "", // _aggregatorURI
         AggregatorOperator.address, // _aggregatorOperator
         0, // _parentAggregator
-        1, // _aggregatedEntityType 1 - token, 2 aggregator
-        [1, 2], // _aggregatedEntities
-        [DECIMALS.mul(2).div(3), DECIMALS.div(3)] // _aggregatedEntitiesWeights
+        subEntitiesType,
+        subEntitiesIds, // _aggregatedEntities
+        subEntitiesWeigths // _aggregatedEntitiesWeights
       );
-      // connect tokens to the aggregator
-      await TokenOperator.updateParentAggregator(1, 1);
-      await TokenOperator.updateParentAggregator(2, 1);
-      // @todo attach token to upper aggregator
+      if (subEntitiesType == 1) {
+        for (subEntity of subEntities) {
+          const tokenAddress = tokensList[subEntity.id - 1].address;
+          HybridHiveCore.addTokenDetails(
+            tokenAddress,
+            "",
+            TokenOperator.address,
+            aggregatorId
+          );
 
-      // create Ag[2]
-      await HybridHiveCore.createAggregator(
-        "Ag[2]", // _aggregatorName
-        "AG[2]", // _aggregatorSymbol
-        "", // _aggregatorURI
-        AggregatorOperator.address, // _aggregatorOperator
-        0, // _parentAggregator
-        1,
-        [3], // _aggregatedEntities
-        [DECIMALS] // _aggregatedEntitiesWeights
-      );
-      await TokenOperator.updateParentAggregator(3, 2);
+          tokensList[subEntity.id - 1].transferOwnership(
+            HybridHiveCore.address
+          );
 
-      // create Ag[3]
-      await HybridHiveCore.createAggregator(
-        "Ag[3]", // _aggregatorName
-        "AG[3]", // _aggregatorSymbol
-        "", // _aggregatorURI
-        AggregatorOperator.address, // _aggregatorOperator
-        0, // _parentAggregator
-        1,
-        [4, 5], // _aggregatedEntities
-        [DECIMALS.div(2), DECIMALS.div(2)] // _aggregatedEntitiesWeights
-      );
-      await TokenOperator.updateParentAggregator(4, 3);
-      await TokenOperator.updateParentAggregator(5, 3);
+          TokenOperator.approveTokenConnection(tokenAddress, aggregatorId);
+          // update aggregator by connecting sub entities
+        }
+      } else if (subEntitiesType == 2) {
+        for (subEntity of subEntities) {
+          AggregatorOperator.addAggregatorDetails(
+            subEntity.id,
+            "",
+            AggregatorOperator.address,
+            aggregatorId
+          );
+        }
+      }
 
-      // create Ag[4]
-      await HybridHiveCore.createAggregator(
-        "Ag[4]", // _aggregatorName
-        "AG[4]", // _aggregatorSymbol
-        "", // _aggregatorURI
-        AggregatorOperator.address, // _aggregatorOperator
-        0, // _parentAggregator
-        1,
-        [6], // _aggregatedEntities
-        [DECIMALS] // _aggregatedEntitiesWeights
-      );
-      await TokenOperator.updateParentAggregator(6, 4);
+      return newAggregator;
+    };
 
-      // create Ag[5]
-      await HybridHiveCore.createAggregator(
-        "Ag[5]", // _aggregatorName
-        "AG[5]", // _aggregatorSymbol
-        "", // _aggregatorURI
-        AggregatorOperator.address, // _aggregatorOperator
-        0, // _parentAggregator
-        2,
-        [1, 2], // _aggregatedEntities
-        [DECIMALS.div(2), DECIMALS.div(2)] // _aggregatedEntitiesWeights
-      );
-      await AggregatorOperator.updateParentAggregator(1, 5);
-      await AggregatorOperator.updateParentAggregator(2, 5);
+    // @todo move to separate file
+    const aggregatorsConfig = [
+      {
+        name: "Aggregator[1]",
+        symbol: "AG[1]",
+        subEntitiesType: 1,
+        subEntities: [
+          {
+            id: 1,
+            weigth: DECIMALS.mul(2).div(3),
+          },
+          {
+            id: 2,
+            weigth: DECIMALS.div(3),
+          },
+        ],
+      },
+      {
+        name: "Aggregator[2]",
+        symbol: "AG[2]",
+        subEntitiesType: 1,
+        subEntities: [
+          {
+            id: 3,
+            weigth: DECIMALS,
+          },
+        ],
+      },
+      {
+        name: "Aggregator[3]",
+        symbol: "AG[3]",
+        subEntitiesType: 1,
+        subEntities: [
+          {
+            id: 4,
+            weigth: DECIMALS.div(2),
+          },
+          {
+            id: 5,
+            weigth: DECIMALS.div(2),
+          },
+        ],
+      },
+      {
+        name: "Aggregator[4]",
+        symbol: "AG[4]",
+        subEntitiesType: 1,
+        subEntities: [
+          {
+            id: 6,
+            weigth: DECIMALS,
+          },
+        ],
+      },
+      {
+        name: "Aggregator[5]",
+        symbol: "AG[5]",
+        subEntitiesType: 2,
+        subEntities: [
+          {
+            id: 1,
+            weigth: DECIMALS.div(2),
+          },
+          {
+            id: 2,
+            weigth: DECIMALS.div(2),
+          },
+        ],
+      },
+      {
+        name: "Aggregator[6]",
+        symbol: "AG[6]",
+        subEntitiesType: 2,
+        subEntities: [
+          {
+            id: 3,
+            weigth: DECIMALS.mul(3).div(4),
+          },
+          {
+            id: 4,
+            weigth: DECIMALS.div(4),
+          },
+        ],
+      },
+      {
+        name: "Aggregator[7]",
+        symbol: "AG[7]",
+        subEntitiesType: 2,
+        subEntities: [
+          {
+            id: 5,
+            weigth: DECIMALS.mul(3).div(5),
+          },
+          {
+            id: 6,
+            weigth: DECIMALS.mul(2).div(5),
+          },
+        ],
+      },
+    ];
 
-      // create Ag[6]
-      await HybridHiveCore.createAggregator(
-        "Ag[6]", // _aggregatorName
-        "AG[6]", // _aggregatorSymbol
-        "", // _aggregatorURI
-        AggregatorOperator.address, // _aggregatorOperator
-        0, // _parentAggregator
-        2,
-        [3, 4], // _aggregatedEntities
-        [DECIMALS.mul(3).div(4), DECIMALS.div(4)] // _aggregatedEntitiesWeights
+    let aggregatorsCount = 0;
+    for (aggregatorConfig of aggregatorsConfig) {
+      const newAggregator = await createNewAggregator(
+        aggregatorConfig.name,
+        aggregatorConfig.symbol,
+        aggregatorConfig.subEntitiesType,
+        aggregatorConfig.subEntities,
+        ++aggregatorsCount
       );
-      await AggregatorOperator.updateParentAggregator(3, 6);
-      await AggregatorOperator.updateParentAggregator(4, 6);
-
-      // create Ag[7]
-      await HybridHiveCore.createAggregator(
-        "Ag[7]", // _aggregatorName
-        "AG[7]", // _aggregatorSymbol
-        "", // _aggregatorURI
-        AggregatorOperator.address, // _aggregatorOperator
-        0, // _parentAggregator
-        2,
-        [5, 6], // _aggregatedEntities
-        [DECIMALS.mul(3).div(5), DECIMALS.mul(2).div(5)] // _aggregatedEntitiesWeights
-      );
-      await AggregatorOperator.updateParentAggregator(5, 7);
-      await AggregatorOperator.updateParentAggregator(6, 7);
-    */
+    }
 
     /* schema to setup as an initial state
     Ag[7]
@@ -277,18 +350,16 @@ describe("HybridHiveCore", function () {
             account[8] 10% 300
     */
 
-    return { HybridHiveCore, owner, accounts };
+    return { HybridHiveCore, tokensList, owner, accounts };
   }
 
   describe("HibridHive Getters", function () {
     it("Should get user token balance correctly", async function () {
-      const { HybridHiveCore, owner, accounts } = await loadFixture(
+      const { HybridHiveCore, tokensList, owner, accounts } = await loadFixture(
         setupInitState
       );
 
-      expect(await HybridHiveCore.getTokenBalance(1, owner.address)).to.equal(
-        1500
-      );
+      expect(await tokensList[0].balanceOf(owner.address)).to.equal(1500);
     });
 
     it("Should properly calculate global token share", async function () {

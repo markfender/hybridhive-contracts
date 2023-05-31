@@ -1,7 +1,7 @@
 require("dotenv").config();
 require("@nomicfoundation/hardhat-toolbox");
 require("@nomicfoundation/hardhat-foundry");
-
+// @todo add test coverage pluging
 /** @type import('hardhat/config').HardhatUserConfig */
 
 module.exports = {

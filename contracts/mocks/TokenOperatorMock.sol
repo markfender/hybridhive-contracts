@@ -41,4 +41,14 @@ contract TokenOperatorMock is Ownable {
             _parentAggregatorId
         );
     }
+
+    function approveTokenConnection(
+        address _tokenAddress,
+        uint256 _parentAggregatorId
+    ) public onlyOwner {
+        hybridHiveCore.approveTokenConnection(
+            _tokenAddress,
+            _parentAggregatorId
+        );
+    }
 }

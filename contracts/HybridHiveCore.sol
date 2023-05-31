@@ -74,6 +74,7 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         uint256[] memory _aggregatedEntities, // @todo add validation _aggregatedEntities.len == _aggregatedEntitiesWeights.len
         uint256[] memory _aggregatedEntitiesWeights // @todo should be equal to denminator
     ) public returns (uint256) {
+        // @todo allow creation of aggregators only to operatos
         // @todo add validations
         require(_aggregatorOperator != address(0));
         require(
@@ -90,63 +91,120 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         newAggregator.name = _aggregatorName;
         newAggregator.symbol = _aggregatorSymbol;
         newAggregator.uri = _aggregatorURI;
-        newAggregator.operator = _aggregatorOperator;
+        newAggregator.operator = _aggregatorOperator; // @todo creator operator should be set as operator by default
         newAggregator.parentAggregator = _parentAggregator;
         newAggregator.aggregatedEntityType = _aggregatedEntityType;
 
         // add aggregator subentities to the list of entities
         for (uint256 i = 0; i < _aggregatedEntities.length; i++) {
-            _subEntities[newAggregatorId].add(_aggregatedEntities[i]);
+            //@todo this should be done during the confirmation by original owner
+            //_subEntities[newAggregatorId].add(_aggregatedEntities[i]);
         }
 
         for (uint256 i = 0; i < _aggregatedEntitiesWeights.length; i++) {
             _weights[newAggregatorId][
                 _aggregatedEntities[i]
             ] = _aggregatedEntitiesWeights[i];
-            newAggregator.totalWeight += _aggregatedEntitiesWeights[i];
+            //@todo this should be done during the confirmation by original owner
+            //newAggregator.totalWeight += _aggregatedEntitiesWeights[i];
         }
 
         return newAggregatorId;
     }
 
     // GENERAL FUCNCTIONS
-    //@todo REWORK IT
+    // @todo REWORK IT
     // @todo what if few aggregatorks added token
-    function addToken(
+    function addTokenDetails(
         address _tokenAddress,
         string memory _tokenURI,
         address _tokenOperator,
-        uint256 _parentAggregator
+        uint256 _parentAggregatorId
     ) public {
         require(_tokenOperator != address(0));
-        require(msg.sender == TokenMock(_tokenAddress).owner()); // @todo verify that there is such function
+        // @todo verify that there is such function
+        // @todo move to modifier
+        require(msg.sender == TokenMock(_tokenAddress).owner());
         uint256 tokenId = uint256(uint160(_tokenAddress));
-        require(_subEntities[_parentAggregator].contains(tokenId));
-        // @todo validate that there is no such token address
-        // assert(!_tokenSet.contains(_tokenAddress));
-        assert(_tokenSet.add(tokenId));
 
         IHybridHiveCore.TokenData storage newToken = _tokensData[tokenId]; // skip the first token index
         newToken.uri = _tokenURI;
         newToken.operator = _tokenOperator;
-        newToken.parentAggregator = _parentAggregator;
+        newToken.parentAggregator = _parentAggregatorId;
+    }
+
+    function approveTokenConnection(
+        address _tokenAddress,
+        uint256 _parentAggregatorId
+    )
+        public
+        onlyOperator(
+            IHybridHiveCore.EntityType.TOKEN,
+            uint256(uint160(_tokenAddress))
+        )
+    {
+        require(address(this) == TokenMock(_tokenAddress).owner());
+        uint256 tokenId = uint256(uint160(_tokenAddress));
+
+        require(_subEntities[_parentAggregatorId].add(tokenId));
+        // @todo validate that there is no such token address
+        require(_tokenSet.add(tokenId));
+
+        _aggregatorsData[_parentAggregatorId].totalWeight += _weights[
+            _parentAggregatorId
+        ][tokenId];
+    }
+
+    // @todo recheck if it is sufficient to approve tokens connection
+    function addAggregatorDetails(
+        uint256 _aggregatorId,
+        string memory _aggregatorURI,
+        address _aggregatorOperator,
+        uint256 _parentAggregatorId
+    )
+        public
+        onlyOperator(IHybridHiveCore.EntityType.AGGREGATOR, _aggregatorId)
+    {
+        require(_aggregatorId != 0);
+        require(_aggregatorIds.contains(_aggregatorId));
+        assert(_subEntities[_parentAggregatorId].add(_aggregatorId));
+        // @todo validate that there is no such token address
+        // assert(!_tokenSet.contains(_tokenAddress));
+
+        IHybridHiveCore.AggregatorData storage newAggregator = _aggregatorsData[
+            _aggregatorId
+        ]; // skip the first token index
+        newAggregator.uri = _aggregatorURI;
+        newAggregator.operator = _aggregatorOperator;
+        newAggregator.parentAggregator = _parentAggregatorId;
+
+        _aggregatorsData[_parentAggregatorId].totalWeight += _weights[
+            _parentAggregatorId
+        ][_aggregatorId];
     }
 
     /**
      *
      * Workflow to connect token to the platform/ store token address as uint256 just for compatibility reasons
-     * Step 1: Aggregator aggreed to connect token accepting to the list
-     * Step 2: Set owner might set operator and uri
+     * Step 1: Aggregator aggreed to connect token adding the weight
+     * Step 2: The owner might set operator and uri
      * Step 3: Transfer token ownership to the Core platform
-     * Step 4: Confirm to add token to the list
+     * Step 4: Confirm to add token to the list and add token weight
      *
      */
-    //@todo REWORK IT
+    // @todo REWORK IT
     // @todo addd disconect function
     function isTokenConnected(
         address _tokenAddress
     ) public view returns (bool) {
         return TokenMock(_tokenAddress).owner() == address(this); // @todo update meta-transactions
+    }
+
+    function isTokenConnected(
+        uint256 _tokenAddress
+    ) public view returns (bool) {
+        return
+            TokenMock(address(uint160(_tokenAddress))).owner() == address(this); // @todo update meta-transactions
     }
 
     // @todo restrict control to onlyOperatorValidator
@@ -175,7 +233,7 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         }
     }
 
-    // @audit rework
+    // @audit rework, maybe remove completly
     // @audit check if token is connected
     function addSubEntity(
         IHybridHiveCore.EntityType _entityType,
@@ -184,8 +242,12 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         uint256 _weight
     ) public onlyOperator(_entityType, _aggregatorId) {
         require(_subEntities[_aggregatorId].add(_subEntity));
+        IHybridHiveCore.AggregatorData storage aggregator = _aggregatorsData[
+            _aggregatorId
+        ];
 
         _weights[_aggregatorId][_subEntity] = _weight; // weight of the new entity should be zero
+        aggregator.totalWeight += _weight;
     }
 
     // GLOBAL TRANSFER
