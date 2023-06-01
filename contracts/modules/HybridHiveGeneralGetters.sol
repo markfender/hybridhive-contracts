@@ -57,28 +57,6 @@ contract HybridHiveGeneralGetters is HybridHiveStorage {
     }
 
     // @todo add comments
-    function getAllowedTokenHolders(
-        uint256 _tokenId
-    ) public view returns (address[] memory) {
-        //@todo add validations if
-        return _allowedHolders[_tokenId].values();
-    }
-
-    /**
-     * Check if account is allowed to hold spesific token
-     *
-     * @param _tokenId token Id
-     * @param _account account to check
-     *
-     */
-    function isAllowedTokenHolder(
-        uint256 _tokenId,
-        address _account
-    ) public view returns (bool) {
-        return _allowedHolders[_tokenId].contains(_account);
-    }
-
-    // @todo add comments
     // @todo add validation, and notice that it doesn't work for tokens
     function getRootAggregator(
         uint256 _aggregatorId

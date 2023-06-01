@@ -61,7 +61,7 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         uint256 _amount
     ) public onlyOperator(IHybridHiveCore.EntityType.TOKEN, _tokenId) {
         address tokenAddress = address(uint160(_tokenId));
-        TokenMock(tokenAddress).mint(_account, _amount);
+        TokenMock(tokenAddress).burn(_account, _amount);
     }
 
     function createAggregator(
@@ -278,7 +278,6 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         // @todo validate if it is same as root of `_tokenToId`
 
         require(_sender == msg.sender);
-        require(isAllowedTokenHolder(_tokenToId, _recipient));
 
         uint256 rootAggregator = getRootAggregator(
             _tokensData[_tokenFromId].parentAggregator
@@ -307,7 +306,7 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         );
         uint256 operationalValue;
 
-        burnToken(_tokenFromId, _sender, _amount);
+        TokenMock(address(uint160(_tokenFromId))).burn(_sender, _amount);
         while (parentEntity != 0) {
             operationalValue = convert(
                 convert(_weights[parentEntity][entityId]).mul(operationalShare)
@@ -369,7 +368,10 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
             );
         }
 
-        mintToken(_tokenToId, _recipient, operationalValue);
+        TokenMock(address(uint160(_tokenToId))).mint(
+            _recipient,
+            operationalValue
+        );
     }
 
     // INTERNAL FUNCTIONS

@@ -16,8 +16,6 @@ contract HybridHiveStorage {
     EnumerableSet.UintSet internal _tokenSet;
     // Mapping from token ID to detailed tokens data
     mapping(uint256 => IHybridHiveCore.TokenData) internal _tokensData;
-    // Mapping from token ID to list of allowed holders
-    mapping(uint256 => EnumerableSet.AddressSet) internal _allowedHolders; // @todo probably remove this list
 
     // AGGREGATORS
     // Set of all aggregator Ids

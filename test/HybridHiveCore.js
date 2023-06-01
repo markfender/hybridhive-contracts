@@ -442,7 +442,7 @@ describe("HybridHiveCore", function () {
     });
 
     it("Should properly commit the global transfer", async function () {
-      const { HybridHiveCore, owner, accounts } = await loadFixture(
+      const { HybridHiveCore, tokensList, owner, accounts } = await loadFixture(
         setupInitState
       );
       async function logNetworkTree(rootAggregator, space, globalRoot) {
@@ -495,35 +495,29 @@ describe("HybridHiveCore", function () {
         }
       }
 
-      async function logAccountGlobalBalance(accountAddress, tokenId) {
-        const getUsetBalance = await HybridHiveCore.getTokenBalance(
-          tokenId,
-          accountAddress
-        );
-        const globalTokenShare = await HybridHiveCore.getGlobalValueShare(
-          7,
-          1,
-          tokenId,
-          getUsetBalance
-        );
+      async function logAccountGlobalBalance(accountAddress, tokenData) {
+        const getUsetBalance = await tokenData.balanceOf(accountAddress);
+        const globalTokenShare = await HybridHiveCore[
+          "getGlobalValueShare(uint256,address,uint256)"
+        ](7, tokenData.address, getUsetBalance);
         console.log(accountAddress, getUsetBalance, globalTokenShare);
       }
 
-      await logAccountGlobalBalance(owner.address, 1);
-      await logAccountGlobalBalance(accounts[6].address, 5);
+      await logAccountGlobalBalance(owner.address, tokensList[0]);
+      await logAccountGlobalBalance(accounts[6].address, tokensList[4]);
       //await logNetworkTree(7, 0);
 
       let tx = await HybridHiveCore.globalTransfer(
-        1,
-        5,
+        BN(tokensList[0].address),
+        BN(tokensList[4].address),
         owner.address,
         accounts[6].address,
         500
       );
       tx.wait();
       tx = await HybridHiveCore.connect(accounts[6]).globalTransfer(
-        5,
-        1,
+        BN(tokensList[4].address),
+        BN(tokensList[0].address),
         accounts[6].address,
         owner.address,
         166
@@ -532,8 +526,8 @@ describe("HybridHiveCore", function () {
 
       //await logNetworkTree(7, 0);
 
-      await logAccountGlobalBalance(owner.address, 1);
-      await logAccountGlobalBalance(accounts[6].address, 5);
+      await logAccountGlobalBalance(owner.address, tokensList[0]);
+      await logAccountGlobalBalance(accounts[6].address, tokensList[4]);
     });
   });
 });
