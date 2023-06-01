@@ -36,7 +36,7 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         uint256 _entityId
     ) {
         if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
-            require(_tokenSet.contains(_entityId));
+            //require(_tokenSet.contains(_entityId));
             require(_tokensData[_entityId].operator == msg.sender);
         } else if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
             require(_aggregatorIds.contains(_entityId));
@@ -108,6 +108,8 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
             //@todo this should be done during the confirmation by original owner
             //newAggregator.totalWeight += _aggregatedEntitiesWeights[i];
         }
+
+        _aggregatorsData[newAggregatorId].totalWeight = 0;
 
         return newAggregatorId;
     }
@@ -413,6 +415,21 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
     // @todo unfinalized
     function getGlobalValueShare(
         uint256 _networkRootAggregator,
+        address _tokenAddress,
+        uint256 _absoluteAmount
+    ) public view returns (UD60x18) {
+        uint256 tokenId = uint256(uint160(_tokenAddress));
+        return
+            getGlobalValueShare(
+                _networkRootAggregator,
+                IHybridHiveCore.EntityType.TOKEN,
+                tokenId,
+                _absoluteAmount
+            );
+    }
+
+    function getGlobalValueShare(
+        uint256 _networkRootAggregator,
         IHybridHiveCore.EntityType _entityType,
         uint256 _entityId,
         uint256 _absoluteAmount
@@ -422,6 +439,7 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         uint256 totalAmount;
         uint256 entityId = _entityId;
         uint256 parentAggregatorId;
+
         if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
             totalAmount = TokenMock(address(uint160(entityId))).totalSupply();
             parentAggregatorId = _tokensData[entityId].parentAggregator;
@@ -442,10 +460,24 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
             entityId = parentAggregatorId;
             parentAggregatorId = _aggregatorsData[entityId].parentAggregator;
         }
-
         return
             globalShare.mul(
                 getRelativeWeight(_networkRootAggregator, entityId)
+            );
+    }
+
+    function getAbsoluteAmountFromShare(
+        uint256 _networkRootAggregator,
+        address _tokenAddress,
+        UD60x18 _globalShare
+    ) public view returns (uint256) {
+        uint256 tokenId = uint256(uint160(_tokenAddress));
+        return
+            getAbsoluteAmountFromShare(
+                _networkRootAggregator,
+                IHybridHiveCore.EntityType.TOKEN,
+                tokenId,
+                _globalShare
             );
     }
 
@@ -464,15 +496,12 @@ contract HybridHiveCore is IHybridHiveCore, HybridHiveGeneralGetters {
         uint256 totalAmount;
         if (_entityType == IHybridHiveCore.EntityType.TOKEN) {
             // @todo recheck if it possible
-            totalAmount = TokenMock(
-                address(uint160(_tokensData[_entityId].parentAggregator))
-            ).totalSupply();
+            totalAmount = TokenMock(address(uint160(_entityId))).totalSupply();
         } else if (_entityType == IHybridHiveCore.EntityType.AGGREGATOR) {
             totalAmount = _aggregatorsData[
                 _aggregatorsData[_entityId].parentAggregator
             ].totalWeight;
         }
-
         UD60x18 totalSupplyShare = getGlobalValueShare(
             _networkRootAggregator,
             _entityType,

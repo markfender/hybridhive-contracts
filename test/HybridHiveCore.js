@@ -142,8 +142,13 @@ describe("HybridHiveCore", function () {
       subEntities,
       aggregatorId
     ) => {
-      const subEntitiesIds = subEntities.map((entity) => entity.id);
       const subEntitiesWeigths = subEntities.map((entity) => entity.weigth);
+      let subEntitiesIds =
+        subEntitiesType == 1
+          ? subEntities.map((entity) =>
+              BN(tokensList[entity.id - 1].address).toString()
+            )
+          : subEntities.map((entity) => entity.id);
 
       const newAggregator = await HybridHiveCore.createAggregator(
         aggregatorName, // _aggregatorName
@@ -158,23 +163,25 @@ describe("HybridHiveCore", function () {
       if (subEntitiesType == 1) {
         for (subEntity of subEntities) {
           const tokenAddress = tokensList[subEntity.id - 1].address;
-          HybridHiveCore.addTokenDetails(
+          await HybridHiveCore.addTokenDetails(
             tokenAddress,
             "",
             TokenOperator.address,
             aggregatorId
           );
 
-          tokensList[subEntity.id - 1].transferOwnership(
+          await tokensList[subEntity.id - 1].transferOwnership(
             HybridHiveCore.address
           );
-
-          TokenOperator.approveTokenConnection(tokenAddress, aggregatorId);
+          await TokenOperator.approveTokenConnection(
+            tokenAddress,
+            aggregatorId
+          );
           // update aggregator by connecting sub entities
         }
       } else if (subEntitiesType == 2) {
         for (subEntity of subEntities) {
-          AggregatorOperator.addAggregatorDetails(
+          await AggregatorOperator.addAggregatorDetails(
             subEntity.id,
             "",
             AggregatorOperator.address,
@@ -363,19 +370,19 @@ describe("HybridHiveCore", function () {
     });
 
     it("Should properly calculate global token share", async function () {
-      const { HybridHiveCore, owner, accounts } = await loadFixture(
+      const { HybridHiveCore, tokensList, owner, accounts } = await loadFixture(
         setupInitState
       );
-      let result = await HybridHiveCore.getGlobalValueShare(7, 1, 1, 1500);
+      console.log(tokensList[0].address);
+      let result = await HybridHiveCore[
+        "getGlobalValueShare(uint256,address,uint256)"
+      ](7, tokensList[0].address, 1500);
 
       expect(toPercentageString(result)).to.equal("0.15");
 
-      result = await HybridHiveCore.getGlobalValueShare(
-        7,
-        2,
-        1,
-        DECIMALS.div(10)
-      );
+      result = await HybridHiveCore[
+        "getGlobalValueShare(uint256,uint8,uint256,uint256)"
+      ](7, 2, 1, DECIMALS.div(10));
 
       expect(toPercentageString(result)).to.equal("0.03");
     });
@@ -403,35 +410,26 @@ describe("HybridHiveCore", function () {
     });
 
     it("Should properly convert global share into spesific tokens amount", async function () {
-      const { HybridHiveCore, owner, accounts } = await loadFixture(
+      const { HybridHiveCore, tokensList, owner, accounts } = await loadFixture(
         setupInitState
       );
 
       expect(
-        await HybridHiveCore.getAbsoluteAmountFromShare(
-          7,
-          1,
-          1,
-          DECIMALS.div(10)
-        )
+        await HybridHiveCore[
+          "getAbsoluteAmountFromShare(uint256,address,uint256)"
+        ](7, tokensList[0].address, DECIMALS.div(10))
       ).to.equal("1000");
 
       expect(
-        await HybridHiveCore.getAbsoluteAmountFromShare(
-          7,
-          1,
-          2,
-          DECIMALS.mul(3).div(100)
-        )
+        await HybridHiveCore[
+          "getAbsoluteAmountFromShare(uint256,address,uint256)"
+        ](7, tokensList[1].address, DECIMALS.mul(3).div(100))
       ).to.equal("600");
 
       expect(
-        await HybridHiveCore.getAbsoluteAmountFromShare(
-          7,
-          1,
-          3,
-          DECIMALS.mul(3).div(100)
-        )
+        await HybridHiveCore[
+          "getAbsoluteAmountFromShare(uint256,address,uint256)"
+        ](7, tokensList[2].address, DECIMALS.mul(3).div(100))
       ).to.equal("50");
     });
 
